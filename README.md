@@ -1,1 +1,1 @@
-# Restaurent-ManagementSys
+# Restaurant-ManagementSys

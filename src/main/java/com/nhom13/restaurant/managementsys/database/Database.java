@@ -18,7 +18,7 @@ public class Database {
                 Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
                 
                 conn = DriverManager.getConnection(URL, USER, PASS);
-                System.out.println(">>> Đã kết nối SQL Server thành công (Localhost)!");
+                System.out.println(">>> Đã kết nối SQL Server thành công");
             }
         } catch (ClassNotFoundException e) {
             System.err.println("Lỗi: Không tìm thấy thư viện JDBC. Hãy kiểm tra lại file pom.xml");
@@ -28,13 +28,13 @@ public class Database {
         return conn;
     }
     public static void main(String[] args) {
-        System.out.println("Đang test kết nối đến SQL Server...");
+        System.out.println("Đang test kết nối đến SQL Server");
         java.sql.Connection testConn = getConnection();
         
         if (testConn != null) {
-            System.out.println("Đã kết nối thành công!");
+            System.out.println("Đã kết nối thành công");
         } else {
-            System.out.println("Kết nối thất bại. Hãy kiểm tra lại SQL Server.");
+            System.out.println("Kết nối thất bại. Hãy kiểm tra lại SQL Server");
         }
     }
 }

@@ -10,4 +10,12 @@
         <maven.compiler.release>25</maven.compiler.release>
         <exec.mainClass>com.nhom13.restaurant.managementsys.RestaurantManagementSys</exec.mainClass>
     </properties>
+    <dependencies>
+        <!-- Thư viện giao diện FlatLaf -->
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf</artifactId>
+            <version>3.4</version>
+        </dependency>
+    </dependencies>
 </project>

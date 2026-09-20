@@ -23,5 +23,18 @@
             <artifactId>mssql-jdbc</artifactId>
             <version>12.4.2.jre11</version>
         </dependency>
+        <!-- JFreeChart - Vẽ biểu đồ doanh thu trên giao diện Swing -->
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreechart</artifactId>
+            <version>1.5.6</version>
+        </dependency>
+        <!-- Xuất file hóa đơn PDF - Cần nhúng font Unicode để hiển thị tiếng Việt có dấu. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.8</version>
+        </dependency>
+        
     </dependencies>
 </project>

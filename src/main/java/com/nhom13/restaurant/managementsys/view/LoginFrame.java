@@ -119,13 +119,14 @@ public class LoginFrame extends javax.swing.JFrame {
             if (rs.next()) {
                 String role = rs.getString("role");
                 if ("Admin".equalsIgnoreCase(role)) {
-                    com.nhom13.restaurant.managementsys.view.AdminMainFrame adminFrame = new com.nhom13.restaurant.managementsys.view.AdminMainFrame();
-                    adminFrame.setVisible(true);
+                    new com.nhom13.restaurant.managementsys.view.AdminMainFrame().setVisible(true);
+                } else if ("Kitchen".equalsIgnoreCase(role)) {
+                    new com.nhom13.restaurant.managementsys.view.KitchenFrame().setVisible(true);
                 } else {
-                    com.nhom13.restaurant.managementsys.view.StaffMainFrame staffFrame = new com.nhom13.restaurant.managementsys.view.StaffMainFrame();
-                    staffFrame.setVisible(true);
+                    // Staff và các vai trò khác
+                    new com.nhom13.restaurant.managementsys.view.StaffMainFrame().setVisible(true);
                 }
-                this.dispose(); 
+                this.dispose();
             } else {
                 javax.swing.JOptionPane.showMessageDialog(this, "Tài khoản hoặc mật khẩu không chính xác!", "Lỗi", javax.swing.JOptionPane.ERROR_MESSAGE);
             }

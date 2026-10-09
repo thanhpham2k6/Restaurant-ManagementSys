@@ -133,7 +133,7 @@ public class LoginFrame extends javax.swing.JFrame {
         }
     } catch (Exception e) {
         e.printStackTrace();
-        javax.swing.JOptionPane.showMessageDialog(this, "Lỗi kết nối cơ sở dữ liệu!");
+        javax.swing.JOptionPane.showMessageDialog(this, "Lỗi: " + e.toString(), "Lỗi", javax.swing.JOptionPane.ERROR_MESSAGE);
     }
 }
     public static void main(String args[]) {

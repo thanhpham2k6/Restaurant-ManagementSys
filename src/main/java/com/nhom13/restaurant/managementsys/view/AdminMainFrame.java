@@ -501,8 +501,10 @@ public class AdminMainFrame extends JFrame {
         g.gridx=0; g.gridy=rv; form.add(bold("Danh mục:"), g); g.gridx=1; form.add(cmbCat, g);
         g.gridx=2; form.add(bold("Tên món:"), g); g.gridx=3; form.add(txtName, g); rv++;
         g.gridx=0; g.gridy=rv; form.add(bold("Giá (VNĐ):"), g); g.gridx=1; form.add(txtPrice, g);
-        g.gridx=2; form.add(chkAvail, g); g.gridx=3; form.add(new JLabel("Số suất:"), g); rv++;
-        g.gridx=3; g.gridy=rv-1; form.add(txtAvailQty, g); rv++;
+        g.gridx=2; form.add(chkAvail, g); 
+        JPanel qtyPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        qtyPanel.add(bold("Số suất:")); qtyPanel.add(txtAvailQty);
+        g.gridx=3; form.add(qtyPanel, g); rv++;
         JPanel btnRow = new JPanel(); btnRow.add(btnAdd); btnRow.add(btnUpdate); btnRow.add(btnDelete);
         g.gridx=0; g.gridy=rv; g.gridwidth=4; form.add(btnRow, g);
 

@@ -32,4 +32,14 @@ public class OrderDetailDao {
         } catch (SQLException e) { e.printStackTrace(); }
         return details;
     }
+
+    /** Xóa 1 dòng chi tiết đơn hàng theo order_detail_id */
+    public void deleteOrderDetail(int detailId) {
+        String sql = "DELETE FROM OrderDetails WHERE order_detail_id = ?";
+        try (Connection conn = Database.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, detailId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) { e.printStackTrace(); }
+    }
 }
+

@@ -6,6 +6,8 @@ public class LoginFrame extends javax.swing.JFrame {
     public LoginFrame() {
     initComponents();
     btnDangnhap.addActionListener(this::btnDangnhapActionPerformed);
+    // Nhấn Enter trên ô mật khẩu cũng đăng nhập
+    txtMatkhau.addActionListener(this::btnDangnhapActionPerformed);
 }
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
@@ -13,18 +15,16 @@ public class LoginFrame extends javax.swing.JFrame {
 
         jPanel1 = new javax.swing.JPanel();
         btnDangnhap = new javax.swing.JButton();
-        jButton2 = new javax.swing.JButton();
         txtTaikhoan = new javax.swing.JTextField();
         jLabel1 = new javax.swing.JLabel();
-        txtMatkhau = new javax.swing.JTextField();
+        txtMatkhau = new javax.swing.JPasswordField();
         jLabel2 = new javax.swing.JLabel();
         jLabel3 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setTitle("Restaurant Management – Đăng nhập");
 
         btnDangnhap.setText("Đăng nhập");
-
-        jButton2.setText("Đăng kí");
 
         txtTaikhoan.addActionListener(this::txtTaikhoanActionPerformed);
 
@@ -55,11 +55,9 @@ public class LoginFrame extends javax.swing.JFrame {
                             .addComponent(txtMatkhau))))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
             .addGroup(jPanel1Layout.createSequentialGroup()
-                .addGap(132, 132, 132)
-                .addComponent(btnDangnhap)
-                .addGap(27, 27, 27)
-                .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 96, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(16, Short.MAX_VALUE))
+                .addGap(0, 0, Short.MAX_VALUE)
+                .addComponent(btnDangnhap, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(0, 0, Short.MAX_VALUE))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -75,9 +73,7 @@ public class LoginFrame extends javax.swing.JFrame {
                     .addComponent(txtMatkhau, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jLabel3))
                 .addGap(41, 41, 41)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(btnDangnhap)
-                    .addComponent(jButton2))
+                .addComponent(btnDangnhap)
                 .addContainerGap(33, Short.MAX_VALUE))
         );
 
@@ -96,12 +92,12 @@ public class LoginFrame extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void txtTaikhoanActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtTaikhoanActionPerformed
-        
+        txtMatkhau.requestFocus();
     }//GEN-LAST:event_txtTaikhoanActionPerformed
+
     private void btnDangnhapActionPerformed(java.awt.event.ActionEvent evt) {
     String taiKhoan = txtTaikhoan.getText().trim();
-    
-    String matKhau = txtMatkhau.getText().trim(); 
+    String matKhau = new String(txtMatkhau.getPassword()).trim();
 
     if (taiKhoan.isEmpty() || matKhau.isEmpty()) {
         javax.swing.JOptionPane.showMessageDialog(this, "Vui lòng nhập đầy đủ Tài khoản và Mật khẩu!");
@@ -123,7 +119,6 @@ public class LoginFrame extends javax.swing.JFrame {
                 } else if ("Kitchen".equalsIgnoreCase(role)) {
                     new com.nhom13.restaurant.managementsys.view.KitchenFrame().setVisible(true);
                 } else {
-                    // Staff và các vai trò khác
                     new com.nhom13.restaurant.managementsys.view.StaffMainFrame().setVisible(true);
                 }
                 this.dispose();
@@ -137,11 +132,6 @@ public class LoginFrame extends javax.swing.JFrame {
     }
 }
     public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
         try {
             for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
                 if ("Nimbus".equals(info.getName())) {
@@ -152,20 +142,17 @@ public class LoginFrame extends javax.swing.JFrame {
         } catch (ReflectiveOperationException | javax.swing.UnsupportedLookAndFeelException ex) {
             logger.log(java.util.logging.Level.SEVERE, null, ex);
         }
-        //</editor-fold>
 
-        /* Create and display the form */
         java.awt.EventQueue.invokeLater(() -> new LoginFrame().setVisible(true));
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnDangnhap;
-    private javax.swing.JButton jButton2;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JPanel jPanel1;
-    private javax.swing.JTextField txtMatkhau;
+    private javax.swing.JPasswordField txtMatkhau;
     private javax.swing.JTextField txtTaikhoan;
     // End of variables declaration//GEN-END:variables
 }

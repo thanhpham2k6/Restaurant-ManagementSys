@@ -10,16 +10,21 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridLayout;
 import java.util.List;
 
 /**
  * Màn hình Phục Vụ (Staff):
  *  Trái    : Danh sách bàn ăn + tìm kiếm / lọc trạng thái
  *  Phải-trên: Thực đơn lọc theo Danh mục + tìm kiếm (có số suất còn lại)
- *  Phải-dưới: Chi tiết hóa đơn đang mở + thêm món + xóa món + tổng tiền + thanh toán
+ *  Phải-dưới: Chi tiết hóa đơn đang mở
  *
- *  Khi thêm món → deductAvailableQuantity() trừ tồn kho nhà bếp.
- *  Auto-sync 5 giây: cập nhật bàn + thực đơn từ DB.
+ *  Quy trình làm việc (Workflow):
+ *  1. Phục vụ mở bàn -> Đơn ở trạng thái 'Ordering' (Đang gọi món).
+ *  2. Thêm món vào hóa đơn.
+ *  3. Bấm "👨‍🍳 Bắt đầu làm" -> Gửi đơn sang Nhà bếp (chuyển sang 'Pending').
+ *  4. Nhà bếp nhận đơn -> Bắt đầu nấu ('Cooking') -> Nấu xong ('Ready').
+ *  5. Khi Nhà bếp xong ('Ready') -> Hệ thống cập nhật -> Nút "Thanh toán" mới được bật!
  */
 public class StaffMainFrame extends JFrame {
 
@@ -44,7 +49,14 @@ public class StaffMainFrame extends JFrame {
     private DefaultTableModel invoiceModel;
     private JTable invoiceTable;
     private JLabel lblInvoiceInfo;
-    private JLabel lblTotal;       // Tổng tiền
+    private JLabel lblOrderStatus;
+    private JLabel lblTotal;
+
+    // Các nút thao tác hóa đơn
+    private JButton btnAdd;
+    private JButton btnRemove;
+    private JButton btnSendToKitchen;
+    private JButton btnCheckout;
 
     private int currentOrderId = -1;
     private int selectedTableId = -1;
@@ -53,7 +65,7 @@ public class StaffMainFrame extends JFrame {
     public StaffMainFrame() {
         setTitle("Restaurant Management – Phục Vụ / POS");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1150, 680);
+        setSize(1180, 700);
         setLocationRelativeTo(null);
 
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildTablePanel(), buildRightPanel());
@@ -64,9 +76,13 @@ public class StaffMainFrame extends JFrame {
     }
 
     private void startSync() {
-        syncTimer = new javax.swing.Timer(5000, e -> {
+        // Đồng bộ mỗi 3 giây: cập nhật bàn, món ăn và trạng thái đơn hàng từ nhà bếp
+        syncTimer = new javax.swing.Timer(3000, e -> {
             loadTables();
             loadMenuItems();
+            if (currentOrderId != -1) {
+                updateOrderStatusUI();
+            }
         });
         syncTimer.start();
     }
@@ -117,9 +133,9 @@ public class StaffMainFrame extends JFrame {
     private void filterTable(String kw, String status) {
         RowFilter<DefaultTableModel, Object> rf1 = kw.isEmpty() ? null : RowFilter.regexFilter("(?i)" + kw, 1);
         RowFilter<DefaultTableModel, Object> rf2 = "Tất cả".equals(status) ? null : RowFilter.regexFilter("(?i)" + status, 2);
-        if (rf1==null && rf2==null) tableSorter.setRowFilter(null);
-        else if (rf1==null) tableSorter.setRowFilter(rf2);
-        else if (rf2==null) tableSorter.setRowFilter(rf1);
+        if (rf1 == null && rf2 == null) tableSorter.setRowFilter(null);
+        else if (rf1 == null) tableSorter.setRowFilter(rf2);
+        else if (rf2 == null) tableSorter.setRowFilter(rf1);
         else tableSorter.setRowFilter(RowFilter.andFilter(java.util.Arrays.asList(rf1, rf2)));
     }
 
@@ -164,8 +180,10 @@ public class StaffMainFrame extends JFrame {
         txtSearch.addActionListener(e -> btnSearch.doClick());
         btnRefresh.addActionListener(e -> {
             cmbCategory.setSelectedIndex(0);
-            txtSearch.setText(""); menuSorter.setRowFilter(null);
-            reloadCategoryCombo(); loadMenuItems();
+            txtSearch.setText("");
+            menuSorter.setRowFilter(null);
+            reloadCategoryCombo();
+            loadMenuItems();
         });
 
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
@@ -186,50 +204,86 @@ public class StaffMainFrame extends JFrame {
         lblInvoiceInfo = new JLabel("  📋 Chưa có hóa đơn nào được mở. Chọn bàn và nhấn 'Mở bàn'.");
         lblInvoiceInfo.setFont(new Font("Segoe UI", Font.BOLD, 13));
 
-        // Tổng tiền
+        lblOrderStatus = new JLabel("  Trạng thái: Chưa có bàn");
+        lblOrderStatus.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblOrderStatus.setForeground(Color.GRAY);
+
         lblTotal = new JLabel("  💵 Tổng tiền: 0 đ");
         lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblTotal.setForeground(new Color(180, 50, 50));
+
+        JButton btnSyncInvoice = new JButton("🔄");
+        btnSyncInvoice.setToolTipText("Làm mới trạng thái từ nhà bếp");
+        btnSyncInvoice.addActionListener(e -> {
+            if (currentOrderId != -1) {
+                loadInvoice();
+                updateOrderStatusUI();
+            }
+        });
+
+        JPanel headerLeft = new JPanel(new GridLayout(2, 1, 2, 2));
+        headerLeft.add(lblInvoiceInfo);
+        headerLeft.add(lblOrderStatus);
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.add(headerLeft, BorderLayout.WEST);
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 2));
+        headerRight.add(lblTotal);
+        headerRight.add(btnSyncInvoice);
+        headerPanel.add(headerRight, BorderLayout.EAST);
 
         invoiceModel = new DefaultTableModel(new String[]{"#", "Tên món", "SL", "Thành tiền (VNĐ)"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         invoiceTable = new JTable(invoiceModel);
 
-        // Điều khiển
-        JTextField txtQty   = new JTextField("1", 5);
-        JButton btnAdd      = new JButton("➕ Thêm món");
-        JButton btnRemove   = new JButton("🗑️ Xóa món đã chọn");
-        JButton btnCheckout = new JButton("💰 Thanh toán & Đóng bàn");
-        btnCheckout.setBackground(new Color(50, 140, 50));
+        // Điều khiển bên dưới
+        JTextField txtQty = new JTextField("1", 4);
+        btnAdd = new JButton("➕ Thêm món");
+        btnRemove = new JButton("🗑️ Xóa món đã chọn");
+        btnRemove.setForeground(new Color(180, 50, 50));
+
+        // Nút chuyển cho nhà bếp bắt đầu làm
+        btnSendToKitchen = new JButton("👨‍🍳 Bắt đầu làm (Gửi bếp)");
+        btnSendToKitchen.setBackground(new Color(230, 126, 34));
+        btnSendToKitchen.setForeground(Color.WHITE);
+        btnSendToKitchen.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        // Nút thanh toán (chỉ bật khi nhà bếp đã làm xong)
+        btnCheckout = new JButton("💰 Thanh toán & Đóng bàn");
+        btnCheckout.setBackground(new Color(46, 125, 50));
         btnCheckout.setForeground(Color.WHITE);
         btnCheckout.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        btnRemove.setForeground(new Color(180, 50, 50));
+
+        // Mặc định vô hiệu hóa khi chưa mở bàn
+        btnAdd.setEnabled(false);
+        btnRemove.setEnabled(false);
+        btnSendToKitchen.setEnabled(false);
+        btnCheckout.setEnabled(false);
 
         btnAdd.addActionListener(e -> addItemToOrder(txtQty));
         btnRemove.addActionListener(e -> removeItemFromOrder());
+        btnSendToKitchen.addActionListener(e -> sendOrderToKitchen());
         btnCheckout.addActionListener(e -> checkout());
 
         JPanel ctrlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        ctrlPanel.add(new JLabel("Số lượng:")); ctrlPanel.add(txtQty);
+        ctrlPanel.add(new JLabel("Số lượng:"));
+        ctrlPanel.add(txtQty);
         ctrlPanel.add(btnAdd);
-        ctrlPanel.add(Box.createHorizontalStrut(10));
         ctrlPanel.add(btnRemove);
-        ctrlPanel.add(Box.createHorizontalStrut(20));
+        ctrlPanel.add(Box.createHorizontalStrut(15));
+        ctrlPanel.add(btnSendToKitchen);
+        ctrlPanel.add(Box.createHorizontalStrut(15));
         ctrlPanel.add(btnCheckout);
 
-        JPanel northPanel = new JPanel(new BorderLayout());
-        northPanel.add(lblInvoiceInfo, BorderLayout.NORTH);
-        northPanel.add(lblTotal, BorderLayout.SOUTH);
-
-        panel.add(northPanel, BorderLayout.NORTH);
+        panel.add(headerPanel, BorderLayout.NORTH);
         panel.add(new JScrollPane(invoiceTable), BorderLayout.CENTER);
         panel.add(ctrlPanel, BorderLayout.SOUTH);
         return panel;
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  LOGIC
+    //  LOGIC XỬ LÝ ĐƠN HÀNG & NHÀ BẾP
     // ═══════════════════════════════════════════════════════════════
 
     private void loadTables() {
@@ -241,7 +295,10 @@ public class StaffMainFrame extends JFrame {
             tableModel.addRow(new Object[]{t.getTableId(), t.getTableName(), t.getStatus()});
         if (selId > 0) {
             for (int i = 0; i < tableModel.getRowCount(); i++) {
-                if ((int)tableModel.getValueAt(i,0) == selId) { tableGrid.setRowSelectionInterval(i,i); break; }
+                if ((int)tableModel.getValueAt(i, 0) == selId) {
+                    tableGrid.setRowSelectionInterval(i, i);
+                    break;
+                }
             }
         }
     }
@@ -277,31 +334,94 @@ public class StaffMainFrame extends JFrame {
         if (sel != null) cmbCategory.setSelectedItem(sel);
     }
 
+    /** Mở bàn hoặc nạp đơn hàng đang mở của bàn */
     private void openTable() {
         int row = tableGrid.getSelectedRow();
-        if (row < 0) { JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 bàn!"); return; }
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 bàn từ danh sách bên trái!");
+            return;
+        }
         int mr = tableGrid.convertRowIndexToModel(row);
         selectedTableId = (int) tableModel.getValueAt(mr, 0);
         String tableName = tableModel.getValueAt(mr, 1).toString();
 
-        Order pending = orderDao.getPendingOrderByTableId(selectedTableId);
-        if (pending == null) pending = orderDao.getOrderByTableAndStatus(selectedTableId, "Cooking");
-        if (pending == null) {
+        // Tìm đơn hàng chưa thanh toán của bàn
+        Order activeOrder = orderDao.getActiveOrderByTableId(selectedTableId);
+
+        if (activeOrder == null) {
+            // Tạo đơn mới với trạng thái ban đầu là 'Ordering' (Đang chọn món)
             Order newOrder = new Order();
             newOrder.setTableId(selectedTableId);
             newOrder.setUserId(2);
             newOrder.setTotalAmount(0.0);
-            newOrder.setStatus("Pending");
+            newOrder.setStatus("Ordering");
             currentOrderId = orderDao.createOrder(newOrder);
             tableDao.updateTableStatus(selectedTableId, "Occupied");
             loadTables();
         } else {
-            currentOrderId = pending.getOrderId();
+            currentOrderId = activeOrder.getOrderId();
         }
+
         loadInvoice();
+        updateOrderStatusUI();
         lblInvoiceInfo.setText("  📋 Hóa đơn #" + currentOrderId + " | Bàn: " + tableName);
     }
 
+    /** Cập nhật giao diện trạng thái và trạng thái các nút bấm */
+    private void updateOrderStatusUI() {
+        if (currentOrderId == -1) {
+            lblOrderStatus.setText("  Trạng thái: Chưa có bàn nào được mở");
+            lblOrderStatus.setForeground(Color.GRAY);
+            btnAdd.setEnabled(false);
+            btnRemove.setEnabled(false);
+            btnSendToKitchen.setEnabled(false);
+            btnCheckout.setEnabled(false);
+            return;
+        }
+
+        String status = orderDao.getOrderStatus(currentOrderId);
+        int itemCount = invoiceModel.getRowCount();
+
+        if ("Ordering".equalsIgnoreCase(status)) {
+            lblOrderStatus.setText("  📝 Trạng thái: Đang gọi món (Chưa gửi nhà bếp)");
+            lblOrderStatus.setForeground(new Color(211, 84, 0));
+            btnAdd.setEnabled(true);
+            btnRemove.setEnabled(itemCount > 0);
+            btnSendToKitchen.setEnabled(itemCount > 0);
+            btnCheckout.setEnabled(false); // Chưa làm xong, không thể thanh toán!
+
+        } else if ("Pending".equalsIgnoreCase(status)) {
+            lblOrderStatus.setText("  ⏳ Trạng thái: Đã gửi nhà bếp (Chờ đầu bếp nhận nấu...)");
+            lblOrderStatus.setForeground(new Color(180, 100, 0));
+            btnAdd.setEnabled(true);
+            btnRemove.setEnabled(true);
+            btnSendToKitchen.setEnabled(false); // Đã gửi rồi
+            btnCheckout.setEnabled(false); // Đang chờ nấu, chưa thể thanh toán!
+
+        } else if ("Cooking".equalsIgnoreCase(status)) {
+            lblOrderStatus.setText("  🔥 Trạng thái: Nhà bếp ĐANG NẤU món...");
+            lblOrderStatus.setForeground(new Color(192, 57, 43));
+            btnAdd.setEnabled(true);
+            btnRemove.setEnabled(false); // Đang nấu trên bếp không thể tự tiện xóa món
+            btnSendToKitchen.setEnabled(false);
+            btnCheckout.setEnabled(false); // Đang nấu dở, chưa thể thanh toán!
+
+        } else if ("Ready".equalsIgnoreCase(status)) {
+            lblOrderStatus.setText("  ✅ Trạng thái: Bếp ĐÃ NẤU XONG! Sẵn sàng thanh toán.");
+            lblOrderStatus.setForeground(new Color(39, 174, 96));
+            btnAdd.setEnabled(true);
+            btnRemove.setEnabled(false);
+            btnSendToKitchen.setEnabled(false);
+            btnCheckout.setEnabled(true); // ĐÃ NẤU XONG -> ĐƯỢC PHÉP THANH TOÁN!
+
+        } else {
+            lblOrderStatus.setText("  Trạng thái: " + status);
+            lblOrderStatus.setForeground(Color.DARK_GRAY);
+            btnCheckout.setEnabled(false);
+        }
+    }
+
+    /** Thêm món vào hóa đơn */
     private void addItemToOrder(JTextField txtQty) {
         if (currentOrderId == -1) {
             JOptionPane.showMessageDialog(this, "Mở bàn trước khi gọi món!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
@@ -309,7 +429,7 @@ public class StaffMainFrame extends JFrame {
         }
         int menuRow = menuTable.getSelectedRow();
         if (menuRow < 0) {
-            JOptionPane.showMessageDialog(this, "Chọn món từ bảng thực đơn!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn món từ bảng thực đơn bên trên!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         try {
@@ -322,7 +442,7 @@ public class StaffMainFrame extends JFrame {
             String itemName = menuModel.getValueAt(mr, 2).toString();
 
             if ("⚠️ Hết".equals(qtyLbl)) {
-                JOptionPane.showMessageDialog(this, "Món '" + itemName + "' đã hết!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Món '" + itemName + "' đã hết suất hôm nay!", "Thông báo", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
@@ -343,12 +463,20 @@ public class StaffMainFrame extends JFrame {
             detail.setSubtotal(price * qty);
             detailDao.addOrderDetail(detail);
 
-            Order order = orderDao.getPendingOrderByTableId(selectedTableId);
-            if (order == null) order = orderDao.getOrderByTableAndStatus(selectedTableId, "Cooking");
-            if (order != null) orderDao.updateOrderTotal(currentOrderId, order.getTotalAmount() + detail.getSubtotal());
+            // Cập nhật tổng tiền đơn hàng
+            Order order = orderDao.getOrderById(currentOrderId);
+            double newTotal = (order != null ? order.getTotalAmount() : 0.0) + detail.getSubtotal();
+            orderDao.updateOrderTotal(currentOrderId, newTotal);
+
+            // Nếu đơn đã Ready mà khách gọi thêm món, chuyển về 'Ordering' để gửi bếp làm thêm món mới
+            String curSt = orderDao.getOrderStatus(currentOrderId);
+            if ("Ready".equalsIgnoreCase(curSt)) {
+                orderDao.updateOrderStatus(currentOrderId, "Ordering");
+            }
 
             loadInvoice();
             loadMenuItems();
+            updateOrderStatusUI();
         } catch (NumberFormatException ex) {
             JOptionPane.showMessageDialog(this, "Số lượng phải là số nguyên dương!", "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
@@ -356,73 +484,114 @@ public class StaffMainFrame extends JFrame {
 
     /** Xóa món đang được chọn trong bảng hóa đơn */
     private void removeItemFromOrder() {
-        if (currentOrderId == -1) {
-            JOptionPane.showMessageDialog(this, "Không có hóa đơn nào đang mở!"); return;
-        }
+        if (currentOrderId == -1) return;
         int row = invoiceTable.getSelectedRow();
         if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Chọn món cần xóa trong bảng hóa đơn!"); return;
+            JOptionPane.showMessageDialog(this, "Chọn món cần xóa trong bảng hóa đơn!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            return;
         }
 
-        // Lấy order_detail_id từ cột ẩn (cột 0 = detail_id)
         int detailId = (int) invoiceModel.getValueAt(row, 0);
         String itemName = invoiceModel.getValueAt(row, 1).toString();
 
-        if (JOptionPane.showConfirmDialog(this, "Xóa món '" + itemName + "' khỏi hóa đơn?",
+        if (JOptionPane.showConfirmDialog(this, "Xác nhận xóa món '" + itemName + "' khỏi hóa đơn?",
                 "Xác nhận", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
 
-        // Hoàn trả số suất về kho (lấy detail để lấy itemId + qty)
         List<OrderDetail> details = detailDao.getOrderDetailsByOrderId(currentOrderId);
         OrderDetail toRemove = details.stream().filter(d -> d.getOrderDetailId() == detailId).findFirst().orElse(null);
         if (toRemove != null) {
+            // Hoàn trả số suất vào thực đơn
             menuItemDao.setAvailableQuantity(toRemove.getItemId(),
                 menuItemDao.getAllMenuItems().stream().filter(m -> m.getItemId() == toRemove.getItemId())
                     .mapToInt(MenuItem::getAvailableQuantity).findFirst().orElse(0) + toRemove.getQuantity());
 
             // Trừ tổng tiền
-            Order order = orderDao.getPendingOrderByTableId(selectedTableId);
-            if (order == null) order = orderDao.getOrderByTableAndStatus(selectedTableId, "Cooking");
-            if (order != null)
+            Order order = orderDao.getOrderById(currentOrderId);
+            if (order != null) {
                 orderDao.updateOrderTotal(currentOrderId, Math.max(0, order.getTotalAmount() - toRemove.getSubtotal()));
+            }
         }
 
-        // Xóa trong DB
         detailDao.deleteOrderDetail(detailId);
         loadInvoice();
         loadMenuItems();
+        updateOrderStatusUI();
     }
 
+    /** Gửi đơn hàng sang Nhà Bếp để bắt đầu nấu */
+    private void sendOrderToKitchen() {
+        if (currentOrderId == -1) return;
+        if (invoiceModel.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this, "Hóa đơn chưa có món ăn nào! Vui lòng thêm món trước khi gửi bếp.", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Chuyển trạng thái đơn sang 'Pending' để nhà bếp nhận được
+        orderDao.updateOrderStatus(currentOrderId, "Pending");
+        updateOrderStatusUI();
+
+        JOptionPane.showMessageDialog(this,
+            "👨‍🍳 Đã gửi đơn hàng số #" + currentOrderId + " sang Nhà Bếp!\n" +
+            "Đầu bếp sẽ thấy đơn để bắt đầu nấu. Khi bếp nấu xong, bạn mới có thể bấm Thanh toán.",
+            "Gửi bếp thành công", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /** Thanh toán hóa đơn (Chỉ được phép khi nhà bếp đã hoàn thành 'Ready') */
     private void checkout() {
         if (currentOrderId == -1) {
-            JOptionPane.showMessageDialog(this, "Không có hóa đơn nào đang mở!"); return;
+            JOptionPane.showMessageDialog(this, "Không có hóa đơn nào đang mở!");
+            return;
         }
-        // Hiển thị tổng tiền trong confirm
+
+        // Kiểm tra chặt chẽ trạng thái từ Database
+        String status = orderDao.getOrderStatus(currentOrderId);
+        if (!"Ready".equalsIgnoreCase(status)) {
+            String desc = "Ordering".equalsIgnoreCase(status) ? "Đang gọi món (Chưa gửi bếp)" :
+                          "Pending".equalsIgnoreCase(status) ? "Chờ nhà bếp nhận nấu" :
+                          "Cooking".equalsIgnoreCase(status) ? "Nhà bếp đang nấu dở" : status;
+            JOptionPane.showMessageDialog(this,
+                "⚠️ Nhà bếp chưa nấu xong món ăn!\n" +
+                "Trạng thái hiện tại: " + desc + "\n\n" +
+                "👉 Bạn chỉ có thể thanh toán sau khi Nhà Bếp hoàn thành món ăn (Trạng thái: Bếp đã nấu xong).",
+                "Chưa thể thanh toán", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         String totalText = lblTotal.getText();
         if (JOptionPane.showConfirmDialog(this,
                 "Xác nhận thanh toán hóa đơn #" + currentOrderId + "?\n" + totalText,
-                "Thanh toán", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                "Xác nhận thanh toán", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+
             orderDao.updateOrderStatus(currentOrderId, "Paid");
             tableDao.updateTableStatus(selectedTableId, "Empty");
-            currentOrderId = -1; selectedTableId = -1;
+            currentOrderId = -1;
+            selectedTableId = -1;
             invoiceModel.setRowCount(0);
             lblInvoiceInfo.setText("  📋 Đã thanh toán! Chọn bàn mới để tiếp tục.");
             lblTotal.setText("  💵 Tổng tiền: 0 đ");
+            updateOrderStatusUI();
             loadTables();
-            JOptionPane.showMessageDialog(this, "✅ Thanh toán thành công!");
+            JOptionPane.showMessageDialog(this, "✅ Thanh toán thành công và đã đóng bàn!");
         }
     }
 
     private void loadInvoice() {
         invoiceModel.setRowCount(0);
-        if (currentOrderId == -1) { lblTotal.setText("  💵 Tổng tiền: 0 đ"); return; }
+        if (currentOrderId == -1) {
+            lblTotal.setText("  💵 Tổng tiền: 0 đ");
+            return;
+        }
         List<MenuItem> all = menuItemDao.getAllMenuItems();
         double total = 0;
         for (OrderDetail d : detailDao.getOrderDetailsByOrderId(currentOrderId)) {
             String name = all.stream().filter(m -> m.getItemId() == d.getItemId())
                 .map(MenuItem::getItemName).findFirst().orElse("?");
-            // Cột 0 ẩn = detail_id để dùng khi xóa món
-            invoiceModel.addRow(new Object[]{d.getOrderDetailId(), name, d.getQuantity(),
-                String.format("%,.0f", d.getSubtotal())});
+            invoiceModel.addRow(new Object[]{
+                d.getOrderDetailId(),
+                name,
+                d.getQuantity(),
+                String.format("%,.0f", d.getSubtotal())
+            });
             total += d.getSubtotal();
         }
         lblTotal.setText(String.format("  💵 Tổng tiền: %,.0f đ", total));

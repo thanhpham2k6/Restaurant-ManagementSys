@@ -1,16 +1,31 @@
 package service.observer;
 
-import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class ReportDataPublisher {
-    private final List<ReportDataObserver> observers = new CopyOnWriteArrayList<>();
+    private static final Logger LOG = Logger.getLogger(ReportDataPublisher.class.getName());
+
+    private final CopyOnWriteArrayList<ReportDataObserver> observers = new CopyOnWriteArrayList<>();
 
     public void subscribe(ReportDataObserver observer) {
-        observers.add(observer);
+        if (observer != null) {
+            observers.addIfAbsent(observer);  
+        }
+    }
+
+    public void unsubscribe(ReportDataObserver observer) {
+        observers.remove(observer);
     }
 
     public void notifyOrderPaid() {
-        observers.forEach(ReportDataObserver::onOrderPaid);
+        for (ReportDataObserver o : observers) {
+            try {
+                o.onOrderPaid();
+            } catch (RuntimeException e) {
+                LOG.log(Level.WARNING, "Observer bị lỗi khi xử lý onOrderPaid", e);
+            }
+        }
     }
 }

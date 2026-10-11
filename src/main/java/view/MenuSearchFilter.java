@@ -37,12 +37,12 @@ public final class MenuSearchFilter {
     public void applyFilter(String keyword) {
         final String key = normalize(keyword);
         if (key.isEmpty()) {
-            sorter.setRowFilter(null);
+            sorter.setRowFilter(null);   
             return;
         }
         sorter.setRowFilter(new RowFilter<DefaultTableModel, Integer>() {
             @Override
-            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+            public boolean include(RowFilter.Entry<? extends DefaultTableModel, ? extends Integer> entry) {
                 Object value = entry.getValue(searchColumn);
                 return value != null && normalize(value.toString()).contains(key);
             }

@@ -5,10 +5,13 @@ import java.math.BigDecimal;
 public class InvoiceLine {
     private final String name;
     private final int quantity;
-    private final BigDecimal price; // Giá bán lẻ 1 món
+    private final BigDecimal price; 
 
     public InvoiceLine(String name, int quantity, BigDecimal price) {
-        this.name = name;
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Số lượng phải lớn hơn 0");
+        }
+        this.name = (name == null) ? "" : name;
         this.quantity = quantity;
         this.price = (price == null) ? BigDecimal.ZERO : price;
     }
@@ -25,7 +28,6 @@ public class InvoiceLine {
         return price;
     }
 
-    // Thành tiền = Số lượng * Giá
     public BigDecimal getLineTotal() {
         return price.multiply(BigDecimal.valueOf(quantity));
     }

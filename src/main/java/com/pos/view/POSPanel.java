@@ -8,10 +8,13 @@ import com.pos.dao.TableDAO;
 import com.pos.model.*;
 import com.pos.model.MenuItem;
 import com.pos.utils.CurrencyFormat;
+import com.pos.utils.DishImageManager;
+import com.pos.utils.WrapLayout;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -44,6 +47,11 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private JTextField txtSearch;
     private DefaultTableModel menuTableModel;
     private JTable menuTable;
+    private JPanel menuCardContainer;
+    private CardLayout menuCardLayout;
+    private JPanel menuContentPanel;
+    private JToggleButton btnToggleCardView;
+    private JToggleButton btnToggleTableView;
 
     // Right - Invoice
     private JLabel lblOrderInfo;
@@ -67,8 +75,8 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
     private void initUI() {
         JSplitPane splitRight = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildMenuPanel(), buildInvoicePanel());
-        splitRight.setDividerLocation(460);
-        splitRight.setResizeWeight(0.52);
+        splitRight.setDividerLocation(520);
+        splitRight.setResizeWeight(0.55);
 
         JSplitPane splitMain = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildTablePanel(), splitRight);
         splitMain.setDividerLocation(230);
@@ -248,11 +256,12 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private JPanel buildMenuPanel() {
         JPanel panel = new JPanel(new BorderLayout(0, 4));
         panel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(80, 80, 110)),
+            BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
             "Thực đơn món ăn", TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("Segoe UI", Font.BOLD, 12), new Color(220, 220, 240)));
+            new Font("Segoe UI", Font.BOLD, 13), new Color(30, 41, 59)));
         panel.setBorder(new EmptyBorder(4, 4, 4, 4));
 
+        // Thanh công cụ lọc, tìm kiếm và chuyển chế độ xem
         JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         cbCategory = new JComboBox<>();
         cbCategory.addItem(new Category(0, "-- Tất cả danh mục --", CategoryType.FOOD));
@@ -261,7 +270,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         filterBar.add(new JLabel("Loại:"));
         filterBar.add(cbCategory);
 
-        txtSearch = new JTextField(12);
+        txtSearch = new JTextField(10);
         txtSearch.addActionListener(e -> loadMenuItems());
         filterBar.add(new JLabel("Tìm:"));
         filterBar.add(txtSearch);
@@ -269,30 +278,87 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         JButton btnSearch = new JButton("Tìm");
         btnSearch.addActionListener(e -> loadMenuItems());
         filterBar.add(btnSearch);
+
+        // Nút chuyển đổi giữa Thẻ ảnh và Bảng danh sách
+        btnToggleCardView = new JToggleButton("🖼️ Thẻ ảnh", true);
+        btnToggleTableView = new JToggleButton("📋 Danh sách", false);
+        btnToggleCardView.setFocusPainted(false);
+        btnToggleTableView.setFocusPainted(false);
+        ButtonGroup viewGroup = new ButtonGroup();
+        viewGroup.add(btnToggleCardView);
+        viewGroup.add(btnToggleTableView);
+
+        btnToggleCardView.addActionListener(e -> menuCardLayout.show(menuContentPanel, "CARDS"));
+        btnToggleTableView.addActionListener(e -> menuCardLayout.show(menuContentPanel, "TABLE"));
+
+        filterBar.add(new JSeparator(SwingConstants.VERTICAL));
+        filterBar.add(btnToggleCardView);
+        filterBar.add(btnToggleTableView);
+
         panel.add(filterBar, BorderLayout.NORTH);
 
-        menuTableModel = new DefaultTableModel(new Object[]{"ID", "Tên món", "Giá", "Danh mục", "Suất còn"}, 0) {
+        // Nội dung hiển thị món ăn: CardLayout (Thẻ ảnh hoặc Bảng)
+        menuCardLayout = new CardLayout();
+        menuContentPanel = new JPanel(menuCardLayout);
+
+        // 1. Giao diện Thẻ ảnh (Cards Grid với WrapLayout)
+        menuCardContainer = new JPanel(new WrapLayout(FlowLayout.LEFT, 8, 8));
+        menuCardContainer.setBackground(new Color(248, 250, 252));
+        JScrollPane scrollCards = new JScrollPane(menuCardContainer);
+        scrollCards.setBorder(null);
+        scrollCards.getVerticalScrollBar().setUnitIncrement(18);
+        scrollCards.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        menuContentPanel.add(scrollCards, "CARDS");
+
+        // 2. Giao diện Bảng danh sách (Table View kèm ảnh nhỏ)
+        menuTableModel = new DefaultTableModel(new Object[]{"ID", "Ảnh", "Tên món", "Giá", "Danh mục", "Suất còn"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
+            @Override public Class<?> getColumnClass(int columnIndex) {
+                if (columnIndex == 1) return Icon.class;
+                return Object.class;
+            }
         };
         menuTable = new JTable(menuTableModel);
         menuTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        menuTable.setRowHeight(28);
+        menuTable.setRowHeight(38);
         menuTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         menuTable.getColumnModel().getColumn(0).setMaxWidth(0);
         menuTable.getColumnModel().getColumn(0).setMinWidth(0);
         menuTable.getColumnModel().getColumn(0).setPreferredWidth(0);
+
+        menuTable.getColumnModel().getColumn(1).setPreferredWidth(48);
+        menuTable.getColumnModel().getColumn(1).setMaxWidth(55);
+        menuTable.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
+                lbl.setHorizontalAlignment(SwingConstants.CENTER);
+                if (value instanceof Icon icon) {
+                    lbl.setIcon(icon);
+                } else {
+                    lbl.setIcon(null);
+                }
+                return lbl;
+            }
+        });
+
         menuTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         menuTable.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) addSelectedMenuItemToOrder();
             }
         });
-        panel.add(new JScrollPane(menuTable), BorderLayout.CENTER);
+        JScrollPane scrollTable = new JScrollPane(menuTable);
+        scrollTable.setBorder(null);
+        menuContentPanel.add(scrollTable, "TABLE");
 
+        panel.add(menuContentPanel, BorderLayout.CENTER);
+
+        // Thanh chân trang
         JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JLabel hint = new JLabel("* Nhấp đúp chuột vào món để thêm vào hóa đơn");
+        JLabel hint = new JLabel("* Nhấp vào thẻ ảnh hoặc nhấp đúp vào món để thêm vào hóa đơn");
         hint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
-        hint.setForeground(new Color(150, 150, 170));
+        hint.setForeground(new Color(100, 116, 139));
         bottomBar.add(hint);
         JButton btnAdd = new JButton("Thêm món");
         btnAdd.addActionListener(e -> addSelectedMenuItemToOrder());
@@ -305,6 +371,8 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
     private void loadMenuItems() {
         menuTableModel.setRowCount(0);
+        menuCardContainer.removeAll();
+
         Category selected = (Category) cbCategory.getSelectedItem();
         String keyword = txtSearch.getText().trim();
         List<MenuItem> items;
@@ -315,25 +383,158 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         } else {
             items = menuDAO.findAll();
         }
+
         for (MenuItem item : items) {
             if (!item.isAvailable()) continue;
             int servings = stockController.getRemainingServings(item.getId());
-            String servingStr = servings == Integer.MAX_VALUE ? "Sẵn sàng" : String.valueOf(servings);
+            String servingStr;
+            Color badgeBg;
+            Color badgeFg;
+
+            if (servings == 0) {
+                servingStr = "Hết hàng";
+                badgeBg = new Color(254, 226, 226);
+                badgeFg = new Color(185, 28, 28);
+            } else if (servings != Integer.MAX_VALUE && servings <= 10) {
+                servingStr = "Còn " + servings + " suất";
+                badgeBg = new Color(254, 243, 199);
+                badgeFg = new Color(180, 83, 9);
+            } else if (servings != Integer.MAX_VALUE) {
+                servingStr = "Còn " + servings + " suất";
+                badgeBg = new Color(220, 252, 231);
+                badgeFg = new Color(21, 128, 61);
+            } else {
+                servingStr = "Luôn sẵn có";
+                badgeBg = new Color(219, 234, 254);
+                badgeFg = new Color(29, 78, 216);
+            }
+
+            // 1. Thêm vào Table Model (kèm ảnh thumbnail 38x28px)
+            ImageIcon thumb = DishImageManager.getDishIcon(item.getId(), item.getCategory().getName(), item.getName(), 38, 28, 4);
             menuTableModel.addRow(new Object[]{
                 item.getId(),
+                thumb,
                 item.getName(),
                 CurrencyFormat.format(item.getPrice()),
                 item.getCategory().getName(),
                 servingStr
             });
+
+            // 2. Thêm vào Card View trực quan
+            JPanel card = createDishCard(item, servings, servingStr, badgeBg, badgeFg);
+            menuCardContainer.add(card);
         }
+
+        menuCardContainer.revalidate();
+        menuCardContainer.repaint();
+    }
+
+    private JPanel createDishCard(MenuItem item, int servings, String servingStr, Color badgeBg, Color badgeFg) {
+        JPanel card = new JPanel(new BorderLayout(0, 4));
+        card.setPreferredSize(new Dimension(142, 190));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(226, 232, 240), 1, true),
+            new EmptyBorder(6, 6, 6, 6)
+        ));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        // Hình ảnh món ăn sắc nét bo góc 130x88px
+        ImageIcon icon = DishImageManager.getDishIcon(item.getId(), item.getCategory().getName(), item.getName(), 130, 88, 8);
+        JLabel lblImg = new JLabel(icon);
+        lblImg.setHorizontalAlignment(SwingConstants.CENTER);
+        card.add(lblImg, BorderLayout.NORTH);
+
+        // Thông tin: Tên, Giá, Suất còn
+        JPanel infoPanel = new JPanel(new GridLayout(3, 1, 0, 2));
+        infoPanel.setOpaque(false);
+
+        JLabel lblName = new JLabel("<html><center><b>" + item.getName() + "</b></center></html>");
+        lblName.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblName.setHorizontalAlignment(SwingConstants.CENTER);
+        infoPanel.add(lblName);
+
+        JLabel lblPrice = new JLabel(CurrencyFormat.format(item.getPrice()));
+        lblPrice.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblPrice.setForeground(new Color(225, 29, 72));
+        lblPrice.setHorizontalAlignment(SwingConstants.CENTER);
+        infoPanel.add(lblPrice);
+
+        JLabel lblBadge = new JLabel(servingStr);
+        lblBadge.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lblBadge.setOpaque(true);
+        lblBadge.setBackground(badgeBg);
+        lblBadge.setForeground(badgeFg);
+        lblBadge.setHorizontalAlignment(SwingConstants.CENTER);
+        lblBadge.setBorder(new EmptyBorder(2, 4, 2, 4));
+        infoPanel.add(lblBadge);
+
+        card.add(infoPanel, BorderLayout.CENTER);
+
+        // Hiệu ứng hover và sự kiện click để thêm món
+        MouseAdapter ma = new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                handleSelectMenuItem(item, servings);
+            }
+            @Override public void mouseEntered(MouseEvent e) {
+                card.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(37, 99, 235), 2, true),
+                    new EmptyBorder(5, 5, 5, 5)
+                ));
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                card.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(226, 232, 240), 1, true),
+                    new EmptyBorder(6, 6, 6, 6)
+                ));
+            }
+        };
+
+        card.addMouseListener(ma);
+        lblImg.addMouseListener(ma);
+        lblName.addMouseListener(ma);
+        lblPrice.addMouseListener(ma);
+        lblBadge.addMouseListener(ma);
+
+        return card;
+    }
+
+    private void handleSelectMenuItem(MenuItem item, int servings) {
+        if (currentOrder == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn đang mở hoặc mở bàn mới trước khi chọn món!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (servings == 0) {
+            JOptionPane.showMessageDialog(this, "Món '" + item.getName() + "' hiện đã hết nguyên liệu!", "Hết hàng", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String qtyStr = JOptionPane.showInputDialog(this, "Nhập số lượng cho món '" + item.getName() + "':", "1");
+        if (qtyStr == null) return;
+        int qty;
+        try {
+            qty = Integer.parseInt(qtyStr.trim());
+            if (qty <= 0) throw new NumberFormatException();
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Số lượng phải là số nguyên dương lớn hơn 0!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (servings != Integer.MAX_VALUE && qty > servings) {
+            JOptionPane.showMessageDialog(this, "Số lượng yêu cầu (" + qty + ") vượt quá số suất nguyên liệu còn lại (" + servings + ")!", "Cảnh báo kho", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String note = JOptionPane.showInputDialog(this, "Ghi chú cho món (ít đá, cay, không hành...):", "");
+        if (note == null) note = "";
+
+        orderController.addItem(currentOrder, item, qty, note);
+        loadInvoice();
+        updateTotal();
     }
 
     private void addSelectedMenuItemToOrder() {
-        if (currentOrder == null) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn đang mở hoặc mở bàn trước!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
         int row = menuTable.getSelectedRow();
         if (row < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn món trong danh sách!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
@@ -341,43 +542,10 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         }
 
         int itemId = (int) menuTableModel.getValueAt(row, 0);
-        String itemName = (String) menuTableModel.getValueAt(row, 1);
-        String servingStr = menuTableModel.getValueAt(row, 4).toString();
-
-        if ("0".equals(servingStr)) {
-            JOptionPane.showMessageDialog(this, "Món '" + itemName + "' đã hết nguyên liệu!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String qtyStr = JOptionPane.showInputDialog(this, "Nhập số lượng cho món '" + itemName + "':", "1");
-        if (qtyStr == null) return;
-        int qty;
-        try {
-            qty = Integer.parseInt(qtyStr.trim());
-            if (qty <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Số lượng phải là số nguyên dương lớn hơn 0!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        if (!"Sẵn sàng".equals(servingStr)) {
-            try {
-                int maxServings = Integer.parseInt(servingStr);
-                if (qty > maxServings) {
-                    JOptionPane.showMessageDialog(this, "Số lượng yêu cầu (" + qty + ") vượt quá số suất nguyên liệu còn (" + maxServings + ")!", "Cảnh báo kho", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
-            } catch (NumberFormatException ignored) {}
-        }
-
-        String note = JOptionPane.showInputDialog(this, "Ghi chú cho món (ít đá, cay, không hành...):", "");
-
         MenuItem item = menuDAO.findById(itemId);
         if (item == null) return;
-
-        orderController.addItem(currentOrder, item, qty, note);
-        loadInvoice();
-        updateTotal();
+        int servings = stockController.getRemainingServings(item.getId());
+        handleSelectMenuItem(item, servings);
     }
 
     // ================= INVOICE PANEL =================

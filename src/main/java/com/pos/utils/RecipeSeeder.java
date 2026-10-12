@@ -16,6 +16,28 @@ public final class RecipeSeeder {
 
     public static void main(String[] args) {
         seedMissingRecipesIfNecessary();
+        backupDatabase();
+    }
+
+    public static void backupDatabase() {
+        try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
+            java.io.File publicBak = new java.io.File("C:/Users/Public/RestaurantManagementSys.bak");
+            java.io.File targetBak = new java.io.File("database/RestaurantManagementSys.bak").getAbsoluteFile();
+            if (publicBak.exists()) publicBak.delete();
+
+            String sql = "BACKUP DATABASE RestaurantManagementSys TO DISK = '" + publicBak.getAbsolutePath().replace("'", "''") + "' WITH FORMAT, INIT, NAME = 'Full RestaurantManagementSys Backup'";
+            try (Statement st = conn.createStatement()) {
+                st.executeUpdate(sql);
+                log.info("SQL Server đã backup ra {}", publicBak.getAbsolutePath());
+            }
+
+            if (publicBak.exists()) {
+                java.nio.file.Files.copy(publicBak.toPath(), targetBak.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                log.info("Đã đồng bộ file backup mới nhất về {}", targetBak.getAbsolutePath());
+            }
+        } catch (Exception e) {
+            log.warn("Không thể backup CSDL tự động: {}", e.getMessage());
+        }
     }
 
     public static void seedMissingRecipesIfNecessary() {

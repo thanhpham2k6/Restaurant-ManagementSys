@@ -29,3 +29,12 @@
 2026-10-13 05:09:26.871 [AWT-EventQueue-0] INFO  org.apache.pdfbox.pdmodel.font.FileSystemFontProvider - Building on-disk font cache, this may take a while
 2026-10-13 05:09:27.566 [AWT-EventQueue-0] INFO  org.apache.pdfbox.pdmodel.font.FileSystemFontProvider - Finished building on-disk font cache, found 214 fonts
 2026-10-13 05:09:27.605 [AWT-EventQueue-0] INFO  com.pos.utils.PDFExporter - Invoice saved: C:\Users\Thanhpham\Documents\GitHub\Restaurant-ManagementSys\invoices\invoice_19_1791842966771.pdf
+2026-10-13 05:15:24.516 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 05:15:24.956 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 05:15:24.969 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 05:15:25.010 [com.pos.utils.RecipeSeeder.main()] WARN  com.pos.utils.RecipeSeeder - Không thể backup CSDL tự động: Cannot open backup device 'C:\Users\Thanhpham\Documents\GitHub\Restaurant-ManagementSys\database\RestaurantManagementSys.bak'. Operating system error 5(Access is denied.).
+2026-10-13 05:15:58.614 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 05:15:59.069 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 05:15:59.082 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 05:15:59.159 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - SQL Server đã backup ra C:\Users\Public\RestaurantManagementSys.bak
+2026-10-13 05:15:59.166 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - Đã đồng bộ file backup mới nhất về C:\Users\Thanhpham\Documents\GitHub\Restaurant-ManagementSys\database\RestaurantManagementSys.bak

@@ -38,3 +38,82 @@
 2026-10-13 05:15:59.082 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
 2026-10-13 05:15:59.159 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - SQL Server đã backup ra C:\Users\Public\RestaurantManagementSys.bak
 2026-10-13 05:15:59.166 [com.pos.utils.RecipeSeeder.main()] INFO  com.pos.utils.RecipeSeeder - Đã đồng bộ file backup mới nhất về C:\Users\Thanhpham\Documents\GitHub\Restaurant-ManagementSys\database\RestaurantManagementSys.bak
+2026-10-13 08:32:34.151 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 08:32:34.151 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 08:32:34.563 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 08:32:34.581 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - Số công thức hiện tại (0) ít hơn mức chuẩn. Đang tự động nạp định lượng cho thực đơn...
+2026-10-13 08:32:34.622 [RecipeSeederThread] WARN  com.pos.utils.RecipeSeeder - Không thể tự động nạp công thức món ăn (có thể CSDL chưa sẵn sàng): Invalid column name 'name'.
+2026-10-13 08:34:07.999 [SwingWorker-pool-3-thread-1] ERROR com.pos.dao.UserDAO - findByUsername error
+com.microsoft.sqlserver.jdbc.SQLServerException: The column name id is not valid.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDriverError(SQLServerException.java:231) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.findColumn(SQLServerResultSet.java:748) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.getInt(SQLServerResultSet.java:2392) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyResultSet.getInt(HikariProxyResultSet.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.dao.UserDAO.mapRow(UserDAO.java:18) ~[classes/:?]
+	at com.pos.dao.UserDAO.findByUsername(UserDAO.java:33) [classes/:?]
+	at com.pos.controller.AuthController.login(AuthController.java:31) [classes/:?]
+	at com.pos.view.LoginForm$3.doInBackground(LoginForm.java:152) [classes/:?]
+	at com.pos.view.LoginForm$3.doInBackground(LoginForm.java:149) [classes/:?]
+	at java.desktop/javax.swing.SwingWorker$1.call(SwingWorker.java:303) [?:?]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330) [?:?]
+	at java.desktop/javax.swing.SwingWorker.run(SwingWorker.java:340) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614) [?:?]
+	at java.base/java.lang.Thread.run(Thread.java:1516) [?:?]
+2026-10-13 08:34:08.007 [SwingWorker-pool-3-thread-1] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Không tìm thấy tài khoản 'admin' trong CSDL
+2026-10-13 08:34:27.580 [SwingWorker-pool-3-thread-2] ERROR com.pos.dao.UserDAO - findByUsername error
+com.microsoft.sqlserver.jdbc.SQLServerException: The column name id is not valid.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDriverError(SQLServerException.java:231) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.findColumn(SQLServerResultSet.java:748) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.getInt(SQLServerResultSet.java:2392) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyResultSet.getInt(HikariProxyResultSet.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.dao.UserDAO.mapRow(UserDAO.java:18) ~[classes/:?]
+	at com.pos.dao.UserDAO.findByUsername(UserDAO.java:33) [classes/:?]
+	at com.pos.controller.AuthController.login(AuthController.java:31) [classes/:?]
+	at com.pos.view.LoginForm$3.doInBackground(LoginForm.java:152) [classes/:?]
+	at com.pos.view.LoginForm$3.doInBackground(LoginForm.java:149) [classes/:?]
+	at java.desktop/javax.swing.SwingWorker$1.call(SwingWorker.java:303) [?:?]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330) [?:?]
+	at java.desktop/javax.swing.SwingWorker.run(SwingWorker.java:340) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614) [?:?]
+	at java.base/java.lang.Thread.run(Thread.java:1516) [?:?]
+2026-10-13 08:34:27.581 [SwingWorker-pool-3-thread-2] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Không tìm thấy tài khoản 'admin' trong CSDL
+2026-10-13 08:47:40.808 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 08:47:40.817 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 08:47:41.230 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 08:47:41.247 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - Số công thức hiện tại (0) ít hơn mức chuẩn. Đang tự động nạp định lượng cho thực đơn...
+2026-10-13 08:47:41.281 [RecipeSeederThread] WARN  com.pos.utils.RecipeSeeder - Không thể tự động nạp công thức món ăn (có thể CSDL chưa sẵn sàng): Invalid column name 'name'.
+2026-10-13 09:26:53.067 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 09:26:53.067 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 09:26:53.470 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 09:26:53.487 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - Số công thức hiện tại (0) ít hơn mức chuẩn. Đang tự động nạp định lượng cho thực đơn...
+2026-10-13 09:26:53.528 [RecipeSeederThread] WARN  com.pos.utils.RecipeSeeder - Không thể tự động nạp công thức món ăn (có thể CSDL chưa sẵn sàng): Invalid column name 'name'.
+2026-10-13 09:27:35.903 [SwingWorker-pool-3-thread-1] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Không tìm thấy tài khoản 'manager' trong CSDL
+2026-10-13 09:29:25.162 [SwingWorker-pool-3-thread-2] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Không tìm thấy tài khoản 'manager' trong CSDL
+2026-10-13 09:47:09.797 [SwingWorker-pool-3-thread-3] ERROR com.pos.dao.UserDAO - findByUsername error
+java.sql.SQLTransientConnectionException: RestaurantPool - Connection is not available, request timed out after 6002ms (total=0, active=0, idle=0, waiting=0)
+	at com.zaxxer.hikari.pool.HikariPool.createTimeoutException(HikariPool.java:686) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:179) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:144) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.HikariDataSource.getConnection(HikariDataSource.java:99) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.utils.DatabaseConnection.getConnection(DatabaseConnection.java:128) ~[classes/:?]
+	at com.pos.dao.UserDAO.findByUsername(UserDAO.java:29) [classes/:?]
+	at com.pos.controller.AuthController.login(AuthController.java:31) [classes/:?]
+	at com.pos.view.LoginForm$3.doInBackground(LoginForm.java:152) [classes/:?]
+	at com.pos.view.LoginForm$3.doInBackground(LoginForm.java:149) [classes/:?]
+	at java.desktop/javax.swing.SwingWorker$1.call(SwingWorker.java:303) [?:?]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330) [?:?]
+	at java.desktop/javax.swing.SwingWorker.run(SwingWorker.java:340) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614) [?:?]
+	at java.base/java.lang.Thread.run(Thread.java:1516) [?:?]
+Caused by: com.microsoft.sqlserver.jdbc.SQLServerException: The connection is closed.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDriverError(SQLServerException.java:231) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerConnection.checkClosed(SQLServerConnection.java:1728) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerConnection.setNetworkTimeout(SQLServerConnection.java:6959) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.PoolBase.setNetworkTimeout(PoolBase.java:562) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.PoolBase.isConnectionDead(PoolBase.java:169) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.HikariPool.getConnection(HikariPool.java:168) ~[HikariCP-5.1.0.jar:?]
+	... 13 more
+2026-10-13 09:47:09.808 [SwingWorker-pool-3-thread-3] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Không tìm thấy tài khoản 'Manager' trong CSDL

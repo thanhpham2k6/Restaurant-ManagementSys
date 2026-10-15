@@ -589,8 +589,9 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
         cbDiscount = new JComboBox<>(new DiscountStrategy[]{new NoDiscount(), new VipDiscount(), new HolidayDiscount()});
         cbDiscount.addActionListener(e -> updateTotal());
+        cbDiscount.addItem(new BirthdayDiscount());
 
-        cbPayment = new JComboBox<>(new String[]{"CASH", "TRANSFER"});
+        cbPayment = new JComboBox<>(new String[]{"CASH", "TRANSFER","MOMO"});
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2; bottom.add(lblSubtotal, gbc);
         gbc.gridy = 1; bottom.add(lblDiscount, gbc);
@@ -615,6 +616,20 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
         JButton btnRemoveItem = new JButton("Hủy món");
         btnRemoveItem.addActionListener(e -> removeSelectedItem());
+        JButton btnPrintAgain = new JButton("In lại hóa đơn");
+        btnPrintAgain.setBackground(new Color(30, 144, 255));
+        btnPrintAgain.setForeground(Color.WHITE);
+        btnPrintAgain.setFocusPainted(false);
+        btnPrintAgain.addActionListener(e -> {
+            if (currentOrder == null) {
+                JOptionPane.showMessageDialog(this, "Chưa chọn đơn hàng nào!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            JOptionPane.showMessageDialog(this, "Đang in lại hóa đơn cho đơn #" + currentOrder.getId());
+        });
+        btnRow.add(btnPrintAgain);
+
 
         btnPay = new JButton("Thanh toán");
         btnPay.setBackground(new Color(46, 125, 50));
@@ -632,7 +647,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         btnRow.add(btnRemoveItem);
         btnRow.add(btnPay);
         btnRow.add(btnCancel);
-
+        
         gbc.gridy = 6; gbc.gridx = 0; gbc.gridwidth = 2; bottom.add(btnRow, gbc);
 
         panel.add(bottom, BorderLayout.SOUTH);

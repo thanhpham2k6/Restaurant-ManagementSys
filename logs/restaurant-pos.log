@@ -2893,3 +2893,47 @@ com.microsoft.sqlserver.jdbc.SQLServerException: Invalid column name 'sent_to_ki
 	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) [?:?]
 	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) [?:?]
 	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90) [?:?]
+2026-10-13 10:43:38.379 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 10:43:38.383 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 10:43:38.820 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 10:43:38.841 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 10:47:05.145 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 10:47:05.150 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 10:47:05.627 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 10:47:05.647 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 10:47:14.916 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: manager [MANAGER]
+2026-10-13 10:49:43.514 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 10:49:43.518 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 10:49:43.962 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 10:49:43.977 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 10:49:53.801 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: manager [MANAGER]
+2026-10-13 10:59:41.971 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 10:59:41.974 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 10:59:42.387 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 10:59:42.401 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 10:59:51.694 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: manager [MANAGER]
+2026-10-13 11:33:48.261 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 11:33:48.270 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 11:33:48.711 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 11:33:48.725 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 11:34:16.096 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: manager [MANAGER]
+2026-10-13 11:34:48.556 [AWT-EventQueue-0] INFO  com.pos.controller.TableController - Bàn Bàn 02 đã mở, mã đơn #22 bởi nhân viên manager
+2026-10-13 11:34:55.269 [AWT-EventQueue-0] INFO  com.pos.controller.OrderController - Đơn hàng #22 đã gửi bếp
+2026-10-13 11:35:20.291 [AWT-EventQueue-0] INFO  com.pos.utils.PDFExporter - Invoice saved: D:\Code Game\File Code\Restaurent-ManagementSys\invoices\invoice_22_1791866120008.pdf
+2026-10-13 11:35:20.292 [AWT-EventQueue-0] INFO  com.pos.controller.OrderController - Thanh toán thành công đơn #22, tổng tiền: 36575.0000, PDF: D:\Code Game\File Code\Restaurent-ManagementSys\invoices\invoice_22_1791866120008.pdf
+2026-10-13 11:38:08.561 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 11:38:08.571 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 11:38:09.025 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 11:38:09.042 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 11:38:16.345 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-13 11:38:16.345 [main] INFO  com.pos.Main - Hệ thống Restaurant POS đã khởi động
+2026-10-13 11:38:16.766 [RecipeSeederThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-13 11:38:16.775 [RecipeSeederThread] INFO  com.pos.utils.RecipeSeeder - CSDL đã có 130 công thức định lượng món ăn, bỏ qua seeding.
+2026-10-13 11:38:34.224 [SwingWorker-pool-3-thread-1] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Sai mật khẩu cho tài khoản 'Manager'
+2026-10-13 11:38:39.243 [SwingWorker-pool-3-thread-2] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Sai mật khẩu cho tài khoản 'Manager'
+2026-10-13 11:38:46.542 [SwingWorker-pool-3-thread-3] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Sai mật khẩu cho tài khoản 'Manager'
+2026-10-13 11:39:04.889 [SwingWorker-pool-3-thread-4] INFO  com.pos.controller.AuthController - Đăng nhập thành công: manager [MANAGER]
+2026-10-13 11:39:16.058 [AWT-EventQueue-0] INFO  com.pos.controller.TableController - Bàn Bàn 02 đã mở, mã đơn #23 bởi nhân viên manager
+2026-10-13 11:39:21.109 [AWT-EventQueue-0] INFO  com.pos.controller.OrderController - Đơn hàng #23 đã gửi bếp
+2026-10-13 11:39:50.075 [AWT-EventQueue-0] INFO  com.pos.utils.PDFExporter - Invoice saved: D:\Code Game\File Code\Restaurent-ManagementSys\invoices\invoice_23_1791866389816.pdf
+2026-10-13 11:39:50.075 [AWT-EventQueue-0] INFO  com.pos.controller.OrderController - Thanh toán thành công đơn #23, tổng tiền: 38500.00, PDF: D:\Code Game\File Code\Restaurent-ManagementSys\invoices\invoice_23_1791866389816.pdf

@@ -1,2 +1,2 @@
 package com.pos.model;
-public enum PaymentMethodType { CASH, TRANSFER }
+public enum PaymentMethodType { CASH, TRANSFER, MOMO }

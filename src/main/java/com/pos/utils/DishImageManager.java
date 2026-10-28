@@ -5,6 +5,8 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
@@ -16,61 +18,63 @@ public final class DishImageManager {
     private DishImageManager() {}
 
     /**
-     * Lấy ImageIcon của món ăn theo ID, có bo góc và cache bộ nhớ.
-     * @param itemId ID của món ăn
-     * @param categoryName Tên danh mục (dùng tạo placeholder nếu không có ảnh)
-     * @param itemName Tên món ăn
-     * @param width Chiều rộng ảnh
-     * @param height Chiều cao ảnh
-     * @param cornerRadius Bán kính bo góc
+     * Lấy ImageIcon của món ăn theo ID & imagePath, có bo góc và cache bộ nhớ.
      */
     public static ImageIcon getDishIcon(int itemId, String categoryName, String itemName, int width, int height, int cornerRadius) {
-        String key = itemId + "_" + width + "x" + height + "_" + cornerRadius;
-        return CACHE.computeIfAbsent(key, k -> loadOrGenerateImage(itemId, categoryName, itemName, width, height, cornerRadius));
+        return getDishIcon(itemId, null, categoryName, itemName, width, height, cornerRadius);
+    }
+
+    public static ImageIcon getDishIcon(int itemId, String imagePath, String categoryName, String itemName, int width, int height, int cornerRadius) {
+        String key = itemId + "_" + (imagePath != null ? imagePath : "") + "_" + width + "x" + height + "_" + cornerRadius;
+        return CACHE.computeIfAbsent(key, k -> loadOrGenerateImage(itemId, imagePath, categoryName, itemName, width, height, cornerRadius));
     }
 
     public static ImageIcon getDishIcon(int itemId, String categoryName, String itemName, int width, int height) {
-        return getDishIcon(itemId, categoryName, itemName, width, height, 12);
+        return getDishIcon(itemId, null, categoryName, itemName, width, height, 12);
     }
 
-    private static ImageIcon loadOrGenerateImage(int itemId, String categoryName, String itemName, int width, int height, int cornerRadius) {
+    public static ImageIcon getDishIcon(int itemId, String imagePath, String categoryName, String itemName, int width, int height) {
+        return getDishIcon(itemId, imagePath, categoryName, itemName, width, height, 12);
+    }
+
+    private static ImageIcon loadOrGenerateImage(int itemId, String imagePath, String categoryName, String itemName, int width, int height, int cornerRadius) {
         BufferedImage rawImage = null;
 
-        // 1. Thử load từ resource bên trong classpath (khi đóng gói JAR)
-        try {
-            String resPath = "/images/dishes/" + itemId + ".jpg";
-            try (InputStream in = DishImageManager.class.getResourceAsStream(resPath)) {
+        List<String> candidateNames = new ArrayList<>();
+        if (imagePath != null && !imagePath.trim().isEmpty()) {
+            candidateNames.add(imagePath.trim());
+        }
+        candidateNames.add(itemId + ".jpg");
+        candidateNames.add(itemId + ".png");
+
+        // 1. Thử load từ resource bên trong classpath (khi chạy JAR)
+        for (String cName : candidateNames) {
+            String path = cName.startsWith("/") ? cName : "/images/dishes/" + cName;
+            try (InputStream in = DishImageManager.class.getResourceAsStream(path)) {
                 if (in != null) {
                     rawImage = ImageIO.read(in);
+                    if (rawImage != null) break;
                 }
-            }
-            if (rawImage == null) {
-                String resPng = "/images/dishes/" + itemId + ".png";
-                try (InputStream in = DishImageManager.class.getResourceAsStream(resPng)) {
-                    if (in != null) {
-                        rawImage = ImageIO.read(in);
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
+        }
 
-        // 2. Thử load từ thư mục images/dishes/ ngoài đĩa
+        // 2. Thử load từ thư mục images/dishes/ ngoài đĩa hoặc src/main/resources
         if (rawImage == null) {
-            File fJpg = new File("images/dishes/" + itemId + ".jpg");
-            if (fJpg.exists()) {
-                try { rawImage = ImageIO.read(fJpg); } catch (Exception ignored) {}
-            }
-        }
-        if (rawImage == null) {
-            File fPng = new File("images/dishes/" + itemId + ".png");
-            if (fPng.exists()) {
-                try { rawImage = ImageIO.read(fPng); } catch (Exception ignored) {}
-            }
-        }
-        if (rawImage == null) {
-            File fDev = new File("src/main/resources/images/dishes/" + itemId + ".jpg");
-            if (fDev.exists()) {
-                try { rawImage = ImageIO.read(fDev); } catch (Exception ignored) {}
+            for (String cName : candidateNames) {
+                File f = new File("images/dishes/" + cName);
+                if (f.exists()) {
+                    try {
+                        rawImage = ImageIO.read(f);
+                        if (rawImage != null) break;
+                    } catch (Exception ignored) {}
+                }
+                File fDev = new File("src/main/resources/images/dishes/" + cName);
+                if (fDev.exists()) {
+                    try {
+                        rawImage = ImageIO.read(fDev);
+                        if (rawImage != null) break;
+                    } catch (Exception ignored) {}
+                }
             }
         }
 

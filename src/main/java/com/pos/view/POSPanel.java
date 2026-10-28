@@ -1,10 +1,7 @@
 package com.pos.view;
 
 import com.pos.controller.*;
-import com.pos.dao.CategoryDAO;
-import com.pos.dao.MenuDAO;
-import com.pos.dao.OrderDAO;
-import com.pos.dao.TableDAO;
+import com.pos.dao.*;
 import com.pos.model.*;
 import com.pos.model.MenuItem;
 import com.pos.utils.CurrencyFormat;
@@ -12,35 +9,60 @@ import com.pos.utils.DishImageManager;
 import com.pos.utils.WrapLayout;
 
 import javax.swing.*;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridLayout;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
+/**
+ * Phân hệ Thu ngân (POS - Point of Sale).
+ * Giao diện 2 cột hiện đại: Bên trái là Menu món ăn (ảnh lớn, trực quan),
+ * Bên phải là Đơn hàng & Thanh toán (Tại bàn, Mang về, Giao hàng).
+ */
 public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private final User currentUser;
     private final OrderController orderController;
     private final KitchenController kitchenController;
     private final StockController stockController;
-    private final TableController tableController = new TableController();
-    private final MenuDAO menuDAO = new MenuDAO();
-    private final OrderDAO orderDAO = new OrderDAO();
+    private final ShiftController shiftController;
+    private final CustomerController customerController;
+    private final TableController tableController;
+
     private final TableDAO tableDAO = new TableDAO();
+    private final MenuDAO menuDAO = new MenuDAO();
     private final CategoryDAO categoryDAO = new CategoryDAO();
+    private final OrderDAO orderDAO = new OrderDAO();
+    private final VoucherDAO voucherDAO = new VoucherDAO();
+
+    private Consumer<String> onNavigateTabRequested;
 
     // State
     private Order currentOrder;
     private DiningTable selectedTable;
-
-    // Left - Table Map
-    private JPanel tableMapPanel;
-    private final List<JButton> tableButtons = new ArrayList<>();
+    private Customer currentCustomer;
+    private Voucher currentVoucher;
+    private int usedPoints = 0;
+    private OrderType currentOrderType = OrderType.DINE_IN;
+    private List<DiningTable> cachedTables = new ArrayList<>();
 
     // Center - Menu
     private JComboBox<Category> cbCategory;
@@ -53,11 +75,32 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private JToggleButton btnToggleCardView;
     private JToggleButton btnToggleTableView;
 
-    // Right - Invoice
+    // Right - Order Header & Type
+    private JComboBox<OrderType> cbOrderType;
+    private JComboBox<DiningTable> cbDiningTable;
+    private JButton btnOpenOrSwitchTable;
+    private JButton btnViewFloorPlan;
+    private JPanel deliveryInfoPanel;
+    private JTextField txtDeliveryAddress;
+    private JTextField txtDeliveryPhone;
+    private JTextField txtDeliveryFee;
     private JLabel lblOrderInfo;
+
+    // Right - Invoice Table & Controls
     private DefaultTableModel invoiceTableModel;
     private JTable invoiceTable;
-    private JLabel lblSubtotal, lblDiscount, lblVat, lblTotal;
+    private JButton btnQtyPlus, btnQtyMinus, btnRemoveItem, btnItemNote;
+
+    // Right - Customer & Voucher
+    private JTextField txtCustomerPhone;
+    private JLabel lblCustomerInfo;
+    private JButton btnApplyCustomer;
+    private JButton btnUsePoints;
+    private JTextField txtVoucherCode;
+    private JButton btnApplyVoucher;
+
+    // Right - Totals & Actions
+    private JLabel lblSubtotal, lblDiscount, lblDeliveryFeeDisplay, lblTotal;
     private JComboBox<DiscountStrategy> cbDiscount;
     private JComboBox<String> cbPayment;
     private JButton btnPay, btnCancel, btnSendKitchen;
@@ -68,385 +111,205 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         this.orderController = orderController;
         this.kitchenController = kitchenController;
         this.stockController = stockController;
+        this.shiftController = new ShiftController();
+        this.customerController = new CustomerController();
+        this.tableController = new TableController();
+
         setLayout(new BorderLayout());
         initUI();
-        loadTables();
+        loadTablesAsync();
+    }
+
+    public void setOnNavigateTabRequested(Consumer<String> onNavigateTabRequested) {
+        this.onNavigateTabRequested = onNavigateTabRequested;
     }
 
     private void initUI() {
-        JSplitPane splitRight = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildMenuPanel(), buildInvoicePanel());
-        splitRight.setDividerLocation(520);
-        splitRight.setResizeWeight(0.55);
-
-        JSplitPane splitMain = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildTablePanel(), splitRight);
-        splitMain.setDividerLocation(230);
-        splitMain.setResizeWeight(0.18);
+        JSplitPane splitMain = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildMenuPanel(), buildInvoicePanel());
+        splitMain.setDividerLocation(700);
+        splitMain.setResizeWeight(0.62);
+        splitMain.setBorder(null);
 
         add(splitMain, BorderLayout.CENTER);
+
+        // F9 Shortcut for checkout
+        registerKeyboardAction(e -> checkout(),
+            KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0),
+            JComponent.WHEN_IN_FOCUSED_WINDOW);
     }
 
-    // ================= TABLE MAP =================
-    private JPanel buildTablePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
-            "Sơ đồ bàn ăn", TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("Segoe UI", Font.BOLD, 13), new Color(30, 41, 59)));
-        panel.setPreferredSize(new Dimension(230, 0));
-
-        tableMapPanel = new JPanel(new GridLayout(0, 2, 6, 6));
-        tableMapPanel.setBorder(new EmptyBorder(6, 6, 6, 6));
-
-        JScrollPane scroll = new JScrollPane(tableMapPanel);
-        scroll.setBorder(null);
-        panel.add(scroll, BorderLayout.CENTER);
-
-        JPanel bottomTableBar = new JPanel(new GridLayout(2, 1, 4, 4));
-        bottomTableBar.setBorder(new EmptyBorder(4, 4, 4, 4));
-
-        JButton btnMoveTable = new JButton("Chuyển / Gộp bàn");
-        btnMoveTable.addActionListener(e -> handleTableMoveOrMerge());
-        bottomTableBar.add(btnMoveTable);
-
-        JButton btnRefresh = new JButton("Làm mới sơ đồ");
-        btnRefresh.addActionListener(e -> loadTables());
-        bottomTableBar.add(btnRefresh);
-
-        panel.add(bottomTableBar, BorderLayout.SOUTH);
-        return panel;
-    }
-
-    private void loadTables() {
-        tableMapPanel.removeAll();
-        tableButtons.clear();
-        List<DiningTable> tables = tableController.getAllTables();
-        for (DiningTable table : tables) {
-            String statusText = switch (table.getStatus()) {
-                case EMPTY -> "Trống";
-                case OCCUPIED -> "Có khách";
-                case RESERVED -> "Đặt trước";
-            };
-
-            JButton btn = new JButton("<html><center><b>" + table.getName() + "</b><br><small>"
-                    + table.getCapacity() + " chỗ • " + statusText + "</small></center></html>");
-            btn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            btn.setFocusPainted(false);
-            btn.setPreferredSize(new Dimension(95, 55));
-
-            switch (table.getStatus()) {
-                case EMPTY -> {
-                    btn.setBackground(new Color(46, 125, 50));
-                    btn.setForeground(Color.WHITE);
-                }
-                case OCCUPIED -> {
-                    btn.setBackground(new Color(198, 40, 40));
-                    btn.setForeground(Color.WHITE);
-                }
-                case RESERVED -> {
-                    btn.setBackground(new Color(239, 108, 0));
-                    btn.setForeground(Color.WHITE);
-                }
-            }
-
-            btn.addActionListener(e -> onTableClick(table));
-            tableMapPanel.add(btn);
-            tableButtons.add(btn);
-        }
-        tableMapPanel.revalidate();
-        tableMapPanel.repaint();
-    }
-
-    private void onTableClick(DiningTable table) {
-        if (table.getStatus() == TableStatus.EMPTY) {
-            int confirm = JOptionPane.showConfirmDialog(this,
-                "Bàn '" + table.getName() + "' đang trống. Bạn có muốn mở bàn mới?",
-                "Mở bàn", JOptionPane.YES_NO_OPTION);
-            if (confirm != JOptionPane.YES_OPTION) return;
-
-            try {
-                currentOrder = tableController.openTable(table.getId(), currentUser);
-                selectedTable = table;
-                updateInvoiceHeader();
-                loadInvoice();
-                loadTables();
-                JOptionPane.showMessageDialog(this, "Đã mở bàn '" + table.getName() + "' (Mã đơn #" + currentOrder.getId() + ")");
-            } catch (TableController.TableBusyException ex) {
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "Bàn đang bận", JOptionPane.WARNING_MESSAGE);
-            }
-        } else if (table.getStatus() == TableStatus.OCCUPIED) {
-            Order existingOrder = orderDAO.findOpenByTable(table.getId());
-            if (existingOrder != null) {
-                currentOrder = existingOrder;
-                selectedTable = table;
-                updateInvoiceHeader();
-                loadInvoice();
-            } else {
-                JOptionPane.showMessageDialog(this, "Không tìm thấy đơn hàng đang mở cho bàn này!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-            }
-        } else {
-            JOptionPane.showMessageDialog(this, "Bàn đang ở trạng thái: " + table.getStatus(), "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-        }
-    }
-
-    private void handleTableMoveOrMerge() {
-        if (currentOrder == null || selectedTable == null) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn đang phục vụ trước!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String[] options = {"Chuyển sang bàn trống", "Gộp vào bàn khác"};
-        int choice = JOptionPane.showOptionDialog(this,
-            "Chọn thao tác cho bàn '" + selectedTable.getName() + "' (Đơn #" + currentOrder.getId() + "):",
-            "Thao tác bàn", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-
-        List<DiningTable> allTables = tableController.getAllTables();
-
-        if (choice == 0) {
-            List<DiningTable> emptyTables = allTables.stream().filter(t -> t.getStatus() == TableStatus.EMPTY).toList();
-            if (emptyTables.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Hiện không có bàn trống nào để chuyển!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            DiningTable target = (DiningTable) JOptionPane.showInputDialog(this,
-                "Chọn bàn trống đích:", "Chuyển bàn", JOptionPane.QUESTION_MESSAGE, null,
-                emptyTables.toArray(), emptyTables.get(0));
-            if (target != null) {
-                try {
-                    tableController.moveTable(currentOrder.getId(), target.getId(), currentUser);
-                    selectedTable = target;
-                    currentOrder.setTable(target);
-                    updateInvoiceHeader();
-                    loadTables();
-                    JOptionPane.showMessageDialog(this, "Đã chuyển đơn sang bàn " + target.getName());
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, ex.getMessage(), "Lỗi chuyển bàn", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        } else if (choice == 1) {
-            List<DiningTable> occupiedTables = allTables.stream()
-                .filter(t -> t.getStatus() == TableStatus.OCCUPIED && t.getId() != selectedTable.getId()).toList();
-            if (occupiedTables.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Không có bàn có khách khác để gộp vào!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            DiningTable target = (DiningTable) JOptionPane.showInputDialog(this,
-                "Chọn bàn đích muốn gộp vào:", "Gộp bàn", JOptionPane.QUESTION_MESSAGE, null,
-                occupiedTables.toArray(), occupiedTables.get(0));
-            if (target != null) {
-                Order targetOrder = orderDAO.findOpenByTable(target.getId());
-                if (targetOrder != null) {
-                    int confirm = JOptionPane.showConfirmDialog(this,
-                        "Xác nhận gộp đơn bàn " + selectedTable.getName() + " vào bàn " + target.getName() + "?",
-                        "Xác nhận", JOptionPane.YES_NO_OPTION);
-                    if (confirm == JOptionPane.YES_OPTION) {
-                        tableController.mergeTables(currentOrder.getId(), targetOrder.getId());
-                        currentOrder = targetOrder;
-                        selectedTable = target;
-                        updateInvoiceHeader();
-                        loadInvoice();
-                        loadTables();
-                        JOptionPane.showMessageDialog(this, "Gộp bàn thành công!");
-                    }
-                }
-            }
-        }
-    }
-
-    // ================= MENU PANEL =================
+    // =========================================================================
+    // 1. MENU PANEL (BÊN TRÁI)
+    // =========================================================================
     private JPanel buildMenuPanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 4));
-        panel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
-            "Thực đơn món ăn", TitledBorder.LEFT, TitledBorder.TOP,
-            new Font("Segoe UI", Font.BOLD, 13), new Color(30, 41, 59)));
-        panel.setBorder(new EmptyBorder(4, 4, 4, 4));
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setBorder(new CompoundBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                "Thực đơn món ăn & đồ uống", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Segoe UI", Font.BOLD, 14), new Color(30, 41, 59)),
+            new EmptyBorder(6, 8, 8, 8)
+        ));
+        panel.setBackground(new Color(248, 250, 252));
 
-        // Thanh công cụ lọc, tìm kiếm và chuyển chế độ xem
-        JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        // Filter Bar (Category dropdown + Search bar + View Switcher)
+        JPanel filterBar = new JPanel(new BorderLayout(8, 0));
+        filterBar.setOpaque(false);
+
+        JPanel leftFilters = new JPanel(new BorderLayout(8, 0));
+        leftFilters.setOpaque(false);
+
         cbCategory = new JComboBox<>();
-        cbCategory.addItem(new Category(0, "-- Tất cả danh mục --", CategoryType.FOOD));
-        categoryDAO.findAll().forEach(cbCategory::addItem);
+        cbCategory.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        cbCategory.setPreferredSize(new Dimension(170, 34));
+        cbCategory.addItem(new Category(0, "Tất cả danh mục", CategoryType.FOOD));
+        new SwingWorker<List<Category>, Void>() {
+            @Override protected List<Category> doInBackground() { return categoryDAO.findAll(); }
+            @Override protected void done() {
+                try {
+                    for (Category c : get()) cbCategory.addItem(c);
+                } catch (Exception ignored) {}
+            }
+        }.execute();
         cbCategory.addActionListener(e -> loadMenuItems());
-        filterBar.add(new JLabel("Loại:"));
-        filterBar.add(cbCategory);
 
-        txtSearch = new JTextField(10);
-        txtSearch.addActionListener(e -> loadMenuItems());
-        filterBar.add(new JLabel("Tìm:"));
-        filterBar.add(txtSearch);
+        txtSearch = new JTextField();
+        txtSearch.setPreferredSize(new Dimension(220, 34));
+        txtSearch.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        txtSearch.putClientProperty("JTextField.placeholderText", "🔍 Tìm món ăn theo tên...");
+        txtSearch.addKeyListener(new KeyAdapter() {
+            @Override public void keyReleased(KeyEvent e) { loadMenuItems(); }
+        });
 
-        JButton btnSearch = new JButton("Tìm");
-        btnSearch.addActionListener(e -> loadMenuItems());
-        filterBar.add(btnSearch);
+        leftFilters.add(cbCategory, BorderLayout.WEST);
+        leftFilters.add(txtSearch, BorderLayout.CENTER);
 
-        // Nút chuyển đổi giữa Thẻ ảnh và Bảng danh sách
-        btnToggleCardView = new JToggleButton("🖼️ Thẻ ảnh", true);
-        btnToggleTableView = new JToggleButton("📋 Danh sách", false);
-        btnToggleCardView.setFocusPainted(false);
-        btnToggleTableView.setFocusPainted(false);
-        ButtonGroup viewGroup = new ButtonGroup();
-        viewGroup.add(btnToggleCardView);
-        viewGroup.add(btnToggleTableView);
+        JPanel viewTogglePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        viewTogglePanel.setOpaque(false);
 
-        btnToggleCardView.addActionListener(e -> menuCardLayout.show(menuContentPanel, "CARDS"));
-        btnToggleTableView.addActionListener(e -> menuCardLayout.show(menuContentPanel, "TABLE"));
+        btnToggleCardView = new JToggleButton("Thẻ ảnh", true);
+        btnToggleTableView = new JToggleButton("Bảng", false);
+        btnToggleCardView.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnToggleTableView.setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        filterBar.add(new JSeparator(SwingConstants.VERTICAL));
-        filterBar.add(btnToggleCardView);
-        filterBar.add(btnToggleTableView);
+        ButtonGroup bg = new ButtonGroup();
+        bg.add(btnToggleCardView);
+        bg.add(btnToggleTableView);
 
+        btnToggleCardView.addActionListener(e -> menuCardLayout.show(menuContentPanel, "CARD_VIEW"));
+        btnToggleTableView.addActionListener(e -> menuCardLayout.show(menuContentPanel, "TABLE_VIEW"));
+
+        viewTogglePanel.add(btnToggleCardView);
+        viewTogglePanel.add(btnToggleTableView);
+
+        filterBar.add(leftFilters, BorderLayout.CENTER);
+        filterBar.add(viewTogglePanel, BorderLayout.EAST);
         panel.add(filterBar, BorderLayout.NORTH);
 
-        // Nội dung hiển thị món ăn: CardLayout (Thẻ ảnh hoặc Bảng)
+        // Center: Card Layout (Card View vs Table View)
         menuCardLayout = new CardLayout();
         menuContentPanel = new JPanel(menuCardLayout);
+        menuContentPanel.setOpaque(false);
 
-        // 1. Giao diện Thẻ ảnh (Cards Grid với WrapLayout)
-        menuCardContainer = new JPanel(new WrapLayout(FlowLayout.LEFT, 8, 8));
+        // 1. Card View
+        menuCardContainer = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
         menuCardContainer.setBackground(new Color(248, 250, 252));
-        JScrollPane scrollCards = new JScrollPane(menuCardContainer);
-        scrollCards.setBorder(null);
-        scrollCards.getVerticalScrollBar().setUnitIncrement(18);
-        scrollCards.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        menuContentPanel.add(scrollCards, "CARDS");
+        JScrollPane cardScroll = new JScrollPane(menuCardContainer);
+        cardScroll.getVerticalScrollBar().setUnitIncrement(16);
+        cardScroll.setBorder(null);
 
-        // 2. Giao diện Bảng danh sách (Table View kèm ảnh nhỏ)
-        menuTableModel = new DefaultTableModel(new Object[]{"ID", "Ảnh", "Tên món", "Giá", "Danh mục", "Suất còn"}, 0) {
+        // 2. Table View
+        menuTableModel = new DefaultTableModel(new Object[]{"ID", "Tên món", "Danh mục", "Đơn giá", "Trạng thái"}, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
-            @Override public Class<?> getColumnClass(int columnIndex) {
-                if (columnIndex == 1) return Icon.class;
-                return Object.class;
-            }
         };
         menuTable = new JTable(menuTableModel);
         menuTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        menuTable.setRowHeight(38);
-        menuTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        menuTable.getColumnModel().getColumn(0).setMaxWidth(0);
-        menuTable.getColumnModel().getColumn(0).setMinWidth(0);
-        menuTable.getColumnModel().getColumn(0).setPreferredWidth(0);
-
-        menuTable.getColumnModel().getColumn(1).setPreferredWidth(48);
-        menuTable.getColumnModel().getColumn(1).setMaxWidth(55);
-        menuTable.getColumnModel().getColumn(1).setCellRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
-                lbl.setHorizontalAlignment(SwingConstants.CENTER);
-                if (value instanceof Icon icon) {
-                    lbl.setIcon(icon);
-                } else {
-                    lbl.setIcon(null);
-                }
-                return lbl;
+        menuTable.setRowHeight(32);
+        menuTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        menuTable.getColumnModel().getColumn(0).setMaxWidth(50);
+        menuTable.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override public Component getTableCellRendererComponent(JTable t, Object val, boolean sel, boolean foc, int r, int c) {
+                super.getTableCellRendererComponent(t, val, sel, foc, r, c);
+                if (val instanceof BigDecimal bd) setText(CurrencyFormat.format(bd));
+                setHorizontalAlignment(SwingConstants.RIGHT);
+                return this;
             }
         });
-
-        menuTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         menuTable.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) addSelectedMenuItemToOrder();
             }
         });
-        JScrollPane scrollTable = new JScrollPane(menuTable);
-        scrollTable.setBorder(null);
-        menuContentPanel.add(scrollTable, "TABLE");
+        JScrollPane tableScroll = new JScrollPane(menuTable);
+        tableScroll.setBorder(null);
 
+        menuContentPanel.add(cardScroll, "CARD_VIEW");
+        menuContentPanel.add(tableScroll, "TABLE_VIEW");
         panel.add(menuContentPanel, BorderLayout.CENTER);
-
-        // Thanh chân trang
-        JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JLabel hint = new JLabel("* Nhấp vào thẻ ảnh hoặc nhấp đúp vào món để thêm vào hóa đơn");
-        hint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
-        hint.setForeground(new Color(100, 116, 139));
-        bottomBar.add(hint);
-        JButton btnAdd = new JButton("Thêm món");
-        btnAdd.addActionListener(e -> addSelectedMenuItemToOrder());
-        bottomBar.add(btnAdd);
-        panel.add(bottomBar, BorderLayout.SOUTH);
 
         loadMenuItems();
         return panel;
     }
 
     private void loadMenuItems() {
-        menuTableModel.setRowCount(0);
-        menuCardContainer.removeAll();
-
-        Category selected = (Category) cbCategory.getSelectedItem();
+        Category selCat = (Category) cbCategory.getSelectedItem();
         String keyword = txtSearch.getText().trim();
-        List<MenuItem> items;
-        if (!keyword.isEmpty()) {
-            items = menuDAO.search(keyword);
-        } else if (selected != null && selected.getId() > 0) {
-            items = menuDAO.findByCategory(selected.getId());
-        } else {
-            items = menuDAO.findAll();
-        }
 
-        for (MenuItem item : items) {
-            if (!item.isAvailable()) continue;
-            int servings = stockController.getRemainingServings(item.getId());
-            String servingStr;
-            Color badgeBg;
-            Color badgeFg;
-
-            if (servings == 0) {
-                servingStr = "Hết hàng";
-                badgeBg = new Color(254, 226, 226);
-                badgeFg = new Color(185, 28, 28);
-            } else if (servings != Integer.MAX_VALUE && servings <= 10) {
-                servingStr = "Còn " + servings + " suất";
-                badgeBg = new Color(254, 243, 199);
-                badgeFg = new Color(180, 83, 9);
-            } else if (servings != Integer.MAX_VALUE) {
-                servingStr = "Còn " + servings + " suất";
-                badgeBg = new Color(220, 252, 231);
-                badgeFg = new Color(21, 128, 61);
-            } else {
-                servingStr = "Luôn sẵn có";
-                badgeBg = new Color(219, 234, 254);
-                badgeFg = new Color(29, 78, 216);
+        new SwingWorker<List<MenuItem>, Void>() {
+            @Override protected List<MenuItem> doInBackground() {
+                if (!keyword.isEmpty()) return menuDAO.search(keyword);
+                if (selCat != null && selCat.getId() > 0) return menuDAO.findByCategory(selCat.getId());
+                return menuDAO.findAll();
             }
 
-            // 1. Thêm vào Table Model (kèm ảnh thumbnail 38x28px)
-            ImageIcon thumb = DishImageManager.getDishIcon(item.getId(), item.getCategory().getName(), item.getName(), 38, 28, 4);
-            menuTableModel.addRow(new Object[]{
-                item.getId(),
-                thumb,
-                item.getName(),
-                CurrencyFormat.format(item.getPrice()),
-                item.getCategory().getName(),
-                servingStr
-            });
+            @Override protected void done() {
+                try {
+                    List<MenuItem> items = get();
+                    menuTableModel.setRowCount(0);
+                    menuCardContainer.removeAll();
 
-            // 2. Thêm vào Card View trực quan
-            JPanel card = createDishCard(item, servings, servingStr, badgeBg, badgeFg);
-            menuCardContainer.add(card);
-        }
-
-        menuCardContainer.revalidate();
-        menuCardContainer.repaint();
+                    for (MenuItem item : items) {
+                        menuTableModel.addRow(new Object[]{
+                            item.getId(),
+                            item.getName(),
+                            item.getCategory() != null ? item.getCategory().getName() : "",
+                            item.getPrice(),
+                            item.isAvailable() ? "Sẵn sàng" : "Hết hàng"
+                        });
+                        menuCardContainer.add(createMenuItemCard(item));
+                    }
+                    menuCardContainer.revalidate();
+                    menuCardContainer.repaint();
+                } catch (Exception ignored) {}
+            }
+        }.execute();
     }
 
-    private JPanel createDishCard(MenuItem item, int servings, String servingStr, Color badgeBg, Color badgeFg) {
+    private JPanel createMenuItemCard(MenuItem item) {
         JPanel card = new JPanel(new BorderLayout(0, 4));
-        card.setPreferredSize(new Dimension(142, 190));
+        card.setPreferredSize(new Dimension(150, 185));
         card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(226, 232, 240), 1, true),
+        card.setBorder(new CompoundBorder(
+            new LineBorder(new Color(226, 232, 240), 1, true),
             new EmptyBorder(6, 6, 6, 6)
         ));
-        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        // Hình ảnh món ăn sắc nét bo góc 130x88px
-        ImageIcon icon = DishImageManager.getDishIcon(item.getId(), item.getCategory().getName(), item.getName(), 130, 88, 8);
-        JLabel lblImg = new JLabel(icon);
-        lblImg.setHorizontalAlignment(SwingConstants.CENTER);
+        // Dish Photo
+        JLabel lblImg = new JLabel("", SwingConstants.CENTER);
+        lblImg.setPreferredSize(new Dimension(138, 100));
+        ImageIcon icon = DishImageManager.getDishIcon(
+            item.getId(),
+            item.getImagePath(),
+            item.getCategory() != null ? item.getCategory().getName() : "",
+            item.getName(),
+            138, 100
+        );
+        if (icon != null) lblImg.setIcon(icon);
         card.add(lblImg, BorderLayout.NORTH);
 
-        // Thông tin: Tên, Giá, Suất còn
-        JPanel infoPanel = new JPanel(new GridLayout(3, 1, 0, 2));
+        // Info: Name & Price
+        JPanel infoPanel = new JPanel(new GridLayout(2, 1, 2, 2));
         infoPanel.setOpaque(false);
 
         JLabel lblName = new JLabel("<html><center><b>" + item.getName() + "</b></center></html>");
@@ -455,36 +318,27 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         infoPanel.add(lblName);
 
         JLabel lblPrice = new JLabel(CurrencyFormat.format(item.getPrice()));
-        lblPrice.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblPrice.setFont(new Font("Segoe UI", Font.BOLD, 13));
         lblPrice.setForeground(new Color(225, 29, 72));
         lblPrice.setHorizontalAlignment(SwingConstants.CENTER);
         infoPanel.add(lblPrice);
 
-        JLabel lblBadge = new JLabel(servingStr);
-        lblBadge.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        lblBadge.setOpaque(true);
-        lblBadge.setBackground(badgeBg);
-        lblBadge.setForeground(badgeFg);
-        lblBadge.setHorizontalAlignment(SwingConstants.CENTER);
-        lblBadge.setBorder(new EmptyBorder(2, 4, 2, 4));
-        infoPanel.add(lblBadge);
-
         card.add(infoPanel, BorderLayout.CENTER);
 
-        // Hiệu ứng hover và sự kiện click để thêm món
+        // Hover & Click
         MouseAdapter ma = new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
-                handleSelectMenuItem(item, servings);
+                quickAddMenuItem(item, 1, "");
             }
             @Override public void mouseEntered(MouseEvent e) {
-                card.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(37, 99, 235), 2, true),
+                card.setBorder(new CompoundBorder(
+                    new LineBorder(new Color(16, 185, 129), 2, true),
                     new EmptyBorder(5, 5, 5, 5)
                 ));
             }
             @Override public void mouseExited(MouseEvent e) {
-                card.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(226, 232, 240), 1, true),
+                card.setBorder(new CompoundBorder(
+                    new LineBorder(new Color(226, 232, 240), 1, true),
                     new EmptyBorder(6, 6, 6, 6)
                 ));
             }
@@ -494,181 +348,452 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         lblImg.addMouseListener(ma);
         lblName.addMouseListener(ma);
         lblPrice.addMouseListener(ma);
-        lblBadge.addMouseListener(ma);
-
         return card;
     }
 
-    private void handleSelectMenuItem(MenuItem item, int servings) {
-        if (currentOrder == null) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn đang mở hoặc mở bàn mới trước khi chọn món!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        if (servings == 0) {
-            JOptionPane.showMessageDialog(this, "Món '" + item.getName() + "' hiện đã hết nguyên liệu!", "Hết hàng", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String qtyStr = JOptionPane.showInputDialog(this, "Nhập số lượng cho món '" + item.getName() + "':", "1");
-        if (qtyStr == null) return;
-        int qty;
-        try {
-            qty = Integer.parseInt(qtyStr.trim());
-            if (qty <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Số lượng phải là số nguyên dương lớn hơn 0!", "Lỗi nhập liệu", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        if (servings != Integer.MAX_VALUE && qty > servings) {
-            JOptionPane.showMessageDialog(this, "Số lượng yêu cầu (" + qty + ") vượt quá số suất nguyên liệu còn lại (" + servings + ")!", "Cảnh báo kho", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String note = JOptionPane.showInputDialog(this, "Ghi chú cho món (ít đá, cay, không hành...):", "");
-        if (note == null) note = "";
-
-        orderController.addItem(currentOrder, item, qty, note);
-        loadInvoice();
-        updateTotal();
-    }
-
     private void addSelectedMenuItemToOrder() {
-        int row = menuTable.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn món trong danh sách!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
-        int itemId = (int) menuTableModel.getValueAt(row, 0);
-        MenuItem item = menuDAO.findById(itemId);
-        if (item == null) return;
-        int servings = stockController.getRemainingServings(item.getId());
-        handleSelectMenuItem(item, servings);
+        int r = menuTable.getSelectedRow();
+        if (r < 0) return;
+        int id = (int) menuTableModel.getValueAt(r, 0);
+        MenuItem item = menuDAO.findById(id);
+        if (item != null) quickAddMenuItem(item, 1, "");
     }
 
-    // ================= INVOICE PANEL =================
+    // =========================================================================
+    // 2. INVOICE / ORDER PANEL (BÊN PHẢI)
+    // =========================================================================
     private JPanel buildInvoicePanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 4));
+        JPanel panel = new JPanel(new BorderLayout(0, 6));
+        panel.setBorder(new CompoundBorder(
+            BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                "Hóa đơn & Thanh toán", TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Segoe UI", Font.BOLD, 14), new Color(30, 41, 59)),
+            new EmptyBorder(6, 8, 8, 8)
+        ));
+        panel.setBackground(Color.WHITE);
+        panel.setPreferredSize(new Dimension(420, 0));
 
-        lblOrderInfo = new JLabel("  Chưa có bàn nào được chọn");
+        // Top Order Control Section
+        JPanel topOrderBox = new JPanel(new BorderLayout(4, 6));
+        topOrderBox.setOpaque(false);
+
+        // Row 1: Order Type Selector + Floor Plan button
+        JPanel typeRow = new JPanel(new BorderLayout(6, 0));
+        typeRow.setOpaque(false);
+
+        cbOrderType = new JComboBox<>(new OrderType[]{OrderType.DINE_IN, OrderType.TAKEAWAY, OrderType.DELIVERY});
+        cbOrderType.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        cbOrderType.setPreferredSize(new Dimension(170, 32));
+        cbOrderType.addActionListener(e -> onOrderTypeChanged());
+
+        btnViewFloorPlan = new JButton("🗺️ Sơ đồ bàn");
+        btnViewFloorPlan.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnViewFloorPlan.setBackground(new Color(241, 245, 249));
+        btnViewFloorPlan.setForeground(new Color(51, 65, 85));
+        btnViewFloorPlan.setFocusPainted(false);
+        btnViewFloorPlan.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnViewFloorPlan.addActionListener(e -> {
+            if (onNavigateTabRequested != null) {
+                onNavigateTabRequested.accept("Sơ đồ & Đặt bàn");
+            }
+        });
+
+        typeRow.add(new JLabel("Hình thức:"), BorderLayout.WEST);
+        typeRow.add(cbOrderType, BorderLayout.CENTER);
+        typeRow.add(btnViewFloorPlan, BorderLayout.EAST);
+
+        // Row 2: Table Selector / Delivery info
+        JPanel contextRow = new JPanel(new BorderLayout(6, 0));
+        contextRow.setOpaque(false);
+
+        cbDiningTable = new JComboBox<>();
+        cbDiningTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        cbDiningTable.setPreferredSize(new Dimension(210, 32));
+
+        btnOpenOrSwitchTable = new JButton("Bắt đầu đơn");
+        btnOpenOrSwitchTable.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnOpenOrSwitchTable.setBackground(new Color(16, 185, 129));
+        btnOpenOrSwitchTable.setForeground(Color.WHITE);
+        btnOpenOrSwitchTable.setFocusPainted(false);
+        btnOpenOrSwitchTable.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnOpenOrSwitchTable.addActionListener(e -> onOpenOrSwitchTableClicked());
+
+        contextRow.add(new JLabel("Bàn ăn:"), BorderLayout.WEST);
+        contextRow.add(cbDiningTable, BorderLayout.CENTER);
+        contextRow.add(btnOpenOrSwitchTable, BorderLayout.EAST);
+
+        // Delivery info container
+        deliveryInfoPanel = new JPanel(new GridLayout(3, 2, 4, 4));
+        deliveryInfoPanel.setBorder(new CompoundBorder(
+            new LineBorder(new Color(226, 232, 240), 1, true),
+            new EmptyBorder(6, 6, 6, 6)
+        ));
+        deliveryInfoPanel.setOpaque(false);
+        deliveryInfoPanel.setVisible(false);
+
+        txtDeliveryPhone = new JTextField();
+        txtDeliveryAddress = new JTextField();
+        txtDeliveryFee = new JTextField("20000");
+
+        deliveryInfoPanel.add(new JLabel("SĐT nhận:")); deliveryInfoPanel.add(txtDeliveryPhone);
+        deliveryInfoPanel.add(new JLabel("Địa chỉ giao:")); deliveryInfoPanel.add(txtDeliveryAddress);
+        deliveryInfoPanel.add(new JLabel("Phí ship (đ):")); deliveryInfoPanel.add(txtDeliveryFee);
+
+        // Info Banner
+        lblOrderInfo = new JLabel("Chưa chọn bàn / đơn hàng", SwingConstants.LEFT);
         lblOrderInfo.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        lblOrderInfo.setBorder(new EmptyBorder(8, 8, 8, 8));
-        panel.add(lblOrderInfo, BorderLayout.NORTH);
+        lblOrderInfo.setForeground(new Color(15, 118, 110));
+        lblOrderInfo.setBorder(new EmptyBorder(4, 2, 4, 2));
 
-        invoiceTableModel = new DefaultTableModel(
-            new Object[]{"ID", "Tên món", "SL", "Đơn giá", "Thành tiền", "Trạng thái"}, 0) {
+        JPanel headerStack = new JPanel(new GridLayout(3, 1, 4, 4));
+        headerStack.setOpaque(false);
+        headerStack.add(typeRow);
+        headerStack.add(contextRow);
+        headerStack.add(lblOrderInfo);
+
+        topOrderBox.add(headerStack, BorderLayout.NORTH);
+        topOrderBox.add(deliveryInfoPanel, BorderLayout.SOUTH);
+        panel.add(topOrderBox, BorderLayout.NORTH);
+
+        // Invoice Items Table
+        String[] invoiceCols = {"Món", "SL", "Đơn giá", "Thành tiền", "Bếp"};
+        invoiceTableModel = new DefaultTableModel(invoiceCols, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         invoiceTable = new JTable(invoiceTableModel);
         invoiceTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        invoiceTable.setRowHeight(26);
+        invoiceTable.setRowHeight(30);
         invoiceTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        invoiceTable.getColumnModel().getColumn(0).setMaxWidth(0);
-        invoiceTable.getColumnModel().getColumn(0).setMinWidth(0);
-        invoiceTable.getColumnModel().getColumn(0).setPreferredWidth(0);
-        panel.add(new JScrollPane(invoiceTable), BorderLayout.CENTER);
+        invoiceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
-        JPanel bottom = new JPanel(new GridBagLayout());
-        bottom.setBorder(new EmptyBorder(4, 8, 8, 8));
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(2, 4, 2, 4);
+        invoiceTable.getColumnModel().getColumn(1).setMaxWidth(45);
+        invoiceTable.getColumnModel().getColumn(4).setMaxWidth(70);
+
+        DefaultTableCellRenderer right = new DefaultTableCellRenderer();
+        right.setHorizontalAlignment(SwingConstants.RIGHT);
+        invoiceTable.getColumnModel().getColumn(2).setCellRenderer(right);
+        invoiceTable.getColumnModel().getColumn(3).setCellRenderer(right);
+
+        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
+        center.setHorizontalAlignment(SwingConstants.CENTER);
+        invoiceTable.getColumnModel().getColumn(1).setCellRenderer(center);
+        invoiceTable.getColumnModel().getColumn(4).setCellRenderer(center);
+
+        JScrollPane invoiceScroll = new JScrollPane(invoiceTable);
+        invoiceScroll.setBorder(new LineBorder(new Color(226, 232, 240), 1, true));
+
+        // Quick Row Actions (+ / - / Xóa / Ghi chú)
+        JPanel itemCtrlBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        itemCtrlBar.setOpaque(false);
+
+        btnQtyPlus = new JButton("+1");
+        btnQtyMinus = new JButton("-1");
+        btnRemoveItem = new JButton("Xóa");
+        btnItemNote = new JButton("Ghi chú");
+
+        btnQtyPlus.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnQtyMinus.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnRemoveItem.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        btnItemNote.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+        btnQtyPlus.addActionListener(e -> modifySelectedItemQty(1));
+        btnQtyMinus.addActionListener(e -> modifySelectedItemQty(-1));
+        btnRemoveItem.addActionListener(e -> removeSelectedItem());
+        btnItemNote.addActionListener(e -> editSelectedItemNote());
+
+        itemCtrlBar.add(btnQtyMinus);
+        itemCtrlBar.add(btnQtyPlus);
+        itemCtrlBar.add(btnItemNote);
+        itemCtrlBar.add(btnRemoveItem);
+
+        JPanel centerInvoiceWrapper = new JPanel(new BorderLayout(0, 4));
+        centerInvoiceWrapper.setOpaque(false);
+        centerInvoiceWrapper.add(invoiceScroll, BorderLayout.CENTER);
+        centerInvoiceWrapper.add(itemCtrlBar, BorderLayout.SOUTH);
+
+        panel.add(centerInvoiceWrapper, BorderLayout.CENTER);
+
+        // Bottom Controls: CRM + Voucher + Totals + Checkout
+        JPanel bottom = new JPanel();
+        bottom.setLayout(new BoxLayout(bottom, BoxLayout.Y_AXIS));
+        bottom.setOpaque(false);
+
+        // 1. Customer row
+        JPanel custRow = new JPanel(new BorderLayout(4, 0));
+        custRow.setOpaque(false);
+        custRow.setBorder(new EmptyBorder(4, 0, 2, 0));
+
+        txtCustomerPhone = new JTextField();
+        txtCustomerPhone.putClientProperty("JTextField.placeholderText", "SĐT khách hàng tích điểm...");
+        btnApplyCustomer = new JButton("Tìm khách");
+        btnUsePoints = new JButton("Dùng điểm");
+        btnUsePoints.setEnabled(false);
+
+        btnApplyCustomer.addActionListener(e -> lookupCustomer());
+        txtCustomerPhone.addActionListener(e -> lookupCustomer());
+        btnUsePoints.addActionListener(e -> useCustomerPoints());
+
+        JPanel custBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        custBtns.setOpaque(false);
+        custBtns.add(btnApplyCustomer);
+        custBtns.add(btnUsePoints);
+
+        custRow.add(txtCustomerPhone, BorderLayout.CENTER);
+        custRow.add(custBtns, BorderLayout.EAST);
+        bottom.add(custRow);
+
+        lblCustomerInfo = new JLabel("Khách vãng lai");
+        lblCustomerInfo.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblCustomerInfo.setForeground(new Color(100, 116, 139));
+        bottom.add(lblCustomerInfo);
+
+        // 2. Voucher row
+        JPanel voucherRow = new JPanel(new BorderLayout(4, 0));
+        voucherRow.setOpaque(false);
+        voucherRow.setBorder(new EmptyBorder(4, 0, 4, 0));
+
+        txtVoucherCode = new JTextField();
+        txtVoucherCode.putClientProperty("JTextField.placeholderText", "Nhập mã Voucher...");
+        btnApplyVoucher = new JButton("Áp dụng mã");
+        btnApplyVoucher.addActionListener(e -> applyVoucherCode());
+        txtVoucherCode.addActionListener(e -> applyVoucherCode());
+
+        voucherRow.add(txtVoucherCode, BorderLayout.CENTER);
+        voucherRow.add(btnApplyVoucher, BorderLayout.EAST);
+        bottom.add(voucherRow);
+
+        // 3. Totals Grid
+        JPanel totalsGrid = new JPanel(new GridLayout(3, 2, 4, 2));
+        totalsGrid.setOpaque(false);
+        totalsGrid.setBorder(new CompoundBorder(
+            new LineBorder(new Color(241, 245, 249), 1, true),
+            new EmptyBorder(6, 6, 6, 6)
+        ));
 
         lblSubtotal = new JLabel("Tạm tính: 0 đ");
         lblDiscount = new JLabel("Giảm giá: 0 đ");
-        lblVat      = new JLabel("VAT (10%): 0 đ");
-        lblTotal    = new JLabel("TỔNG TIỀN: 0 đ");
-        lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        lblDeliveryFeeDisplay = new JLabel("Phí ship: 0 đ");
+        lblTotal = new JLabel("TỔNG: 0 đ");
+        lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 17));
         lblTotal.setForeground(new Color(225, 29, 72));
 
-        for (JLabel lbl : new JLabel[]{lblSubtotal, lblDiscount, lblVat}) {
-            lbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        }
+        cbPayment = new JComboBox<>(new String[]{"CASH (Tiền mặt)", "TRANSFER (Chuyển khoản)"});
+        cbPayment.setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        cbDiscount = new JComboBox<>(new DiscountStrategy[]{new NoDiscount(), new VipDiscount(), new HolidayDiscount()});
-        cbDiscount.addActionListener(e -> updateTotal());
+        totalsGrid.add(lblSubtotal);
+        totalsGrid.add(lblDiscount);
+        totalsGrid.add(lblDeliveryFeeDisplay);
+        totalsGrid.add(new JLabel("Phương thức:"));
+        totalsGrid.add(lblTotal);
+        totalsGrid.add(cbPayment);
+        bottom.add(totalsGrid);
 
-        cbPayment = new JComboBox<>(new String[]{"CASH", "TRANSFER"});
+        // 4. Action Buttons
+        JPanel actionRow = new JPanel(new GridLayout(1, 3, 8, 0));
+        actionRow.setOpaque(false);
+        actionRow.setBorder(new EmptyBorder(8, 0, 4, 0));
 
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2; bottom.add(lblSubtotal, gbc);
-        gbc.gridy = 1; bottom.add(lblDiscount, gbc);
-        gbc.gridy = 2; bottom.add(lblVat, gbc);
-        gbc.gridy = 3; bottom.add(lblTotal, gbc);
-
-        gbc.gridwidth = 1; gbc.gridy = 4; gbc.gridx = 0;
-        bottom.add(new JLabel("Chiết khấu:"), gbc);
-        gbc.gridx = 1; bottom.add(cbDiscount, gbc);
-
-        gbc.gridy = 5; gbc.gridx = 0;
-        bottom.add(new JLabel("Thanh toán:"), gbc);
-        gbc.gridx = 1; bottom.add(cbPayment, gbc);
-
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
-
-        btnSendKitchen = new JButton("Gửi bếp");
-        btnSendKitchen.setBackground(new Color(25, 118, 210));
+        btnSendKitchen = new JButton("Gửi Bếp");
+        btnSendKitchen.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnSendKitchen.setBackground(new Color(2, 132, 199));
         btnSendKitchen.setForeground(Color.WHITE);
         btnSendKitchen.setFocusPainted(false);
         btnSendKitchen.addActionListener(e -> sendToKitchen());
 
-        JButton btnRemoveItem = new JButton("Hủy món");
-        btnRemoveItem.addActionListener(e -> removeSelectedItem());
-
-        btnPay = new JButton("Thanh toán");
-        btnPay.setBackground(new Color(46, 125, 50));
-        btnPay.setForeground(Color.WHITE);
-        btnPay.setFocusPainted(false);
-        btnPay.addActionListener(e -> checkout());
-
         btnCancel = new JButton("Hủy đơn");
-        btnCancel.setBackground(new Color(198, 40, 40));
+        btnCancel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnCancel.setBackground(new Color(239, 68, 68));
         btnCancel.setForeground(Color.WHITE);
         btnCancel.setFocusPainted(false);
         btnCancel.addActionListener(e -> cancelOrder());
 
-        btnRow.add(btnSendKitchen);
-        btnRow.add(btnRemoveItem);
-        btnRow.add(btnPay);
-        btnRow.add(btnCancel);
+        btnPay = new JButton("THANH TOÁN (F9)");
+        btnPay.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btnPay.setBackground(new Color(16, 185, 129));
+        btnPay.setForeground(Color.WHITE);
+        btnPay.setFocusPainted(false);
+        btnPay.addActionListener(e -> checkout());
 
-        gbc.gridy = 6; gbc.gridx = 0; gbc.gridwidth = 2; bottom.add(btnRow, gbc);
+        actionRow.add(btnSendKitchen);
+        actionRow.add(btnCancel);
+        actionRow.add(btnPay);
+        bottom.add(actionRow);
 
         panel.add(bottom, BorderLayout.SOUTH);
         return panel;
     }
 
-    private void updateInvoiceHeader() {
-        if (currentOrder != null && selectedTable != null) {
-            lblOrderInfo.setText("  Bàn: " + selectedTable.getName() +
-                "  |  Mã đơn #" + currentOrder.getId() +
-                "  |  Thu ngân: " + currentUser.getFullName());
+    // =========================================================================
+    // LOGIC & ACTIONS
+    // =========================================================================
+    private void onOrderTypeChanged() {
+        currentOrderType = (OrderType) cbOrderType.getSelectedItem();
+        boolean isDelivery = (currentOrderType == OrderType.DELIVERY);
+        deliveryInfoPanel.setVisible(isDelivery);
+
+        if (currentOrder != null) {
+            currentOrder.setOrderType(currentOrderType);
+            updateInvoiceHeader();
+            updateTotal();
+        }
+    }
+
+    public void loadTablesAsync() {
+        new SwingWorker<List<DiningTable>, Void>() {
+            @Override protected List<DiningTable> doInBackground() {
+                return tableController.getAllTables();
+            }
+            @Override protected void done() {
+                try {
+                    cachedTables = get();
+                    cbDiningTable.removeAllItems();
+                    for (DiningTable t : cachedTables) {
+                        cbDiningTable.addItem(t);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }.execute();
+    }
+
+    public void selectDiningTable(DiningTable table) {
+        this.selectedTable = table;
+        this.currentOrderType = OrderType.DINE_IN;
+        cbOrderType.setSelectedItem(OrderType.DINE_IN);
+
+        for (int i = 0; i < cbDiningTable.getItemCount(); i++) {
+            if (cbDiningTable.getItemAt(i).getId() == table.getId()) {
+                cbDiningTable.setSelectedIndex(i);
+                break;
+            }
+        }
+
+        if (table.getStatus() == TableStatus.OCCUPIED) {
+            currentOrder = orderDAO.findOpenByTable(table.getId());
         } else {
-            lblOrderInfo.setText("  Chưa có bàn nào được chọn");
+            try {
+                currentOrder = tableController.openTable(table.getId(), currentUser);
+                table.setStatus(TableStatus.OCCUPIED);
+            } catch (Exception ex) {
+                currentOrder = orderDAO.findOpenByTable(table.getId());
+            }
+        }
+
+        resetDiscounts();
+        updateInvoiceHeader();
+        loadInvoice();
+    }
+
+    private void onOpenOrSwitchTableClicked() {
+        if (currentOrderType == OrderType.DINE_IN) {
+            DiningTable t = (DiningTable) cbDiningTable.getSelectedItem();
+            if (t == null) {
+                JOptionPane.showMessageDialog(this, "Vui lòng chọn một bàn ăn!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            selectDiningTable(t);
+        } else {
+            // Takeaway or Delivery
+            String note = JOptionPane.showInputDialog(this, "Ghi chú đơn " + currentOrderType.getDisplayName() + ":", "");
+            Shift curShift = shiftController.getCurrentShift();
+            currentOrder = orderController.createOrder(null, currentUser, curShift, currentOrderType, currentCustomer, "", "", "", note != null ? note : "");
+            selectedTable = null;
+            resetDiscounts();
+            updateInvoiceHeader();
+            loadInvoice();
+        }
+    }
+
+    private void quickAddMenuItem(MenuItem item, int qty, String note) {
+        if (currentOrder == null) {
+            if (currentOrderType == OrderType.DINE_IN) {
+                DiningTable t = (DiningTable) cbDiningTable.getSelectedItem();
+                if (t != null) {
+                    selectDiningTable(t);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn ăn hoặc chọn loại đơn Mang về trước khi chọn món!", "Chưa chọn bàn", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+            } else {
+                onOpenOrSwitchTableClicked();
+            }
+        }
+
+        if (currentOrder == null) return;
+
+        // Check if item already in details
+        OrderDetail existing = null;
+        for (OrderDetail d : currentOrder.getDetails()) {
+            if (d.getItem() != null && d.getItem().getId() == item.getId() && d.getStatus() == ItemStatus.PENDING) {
+                existing = d;
+                break;
+            }
+        }
+
+        if (existing != null) {
+            existing.setQuantity(existing.getQuantity() + qty);
+            orderController.updateItemQuantity(existing.getId(), existing.getQuantity());
+        } else {
+            orderController.addItem(currentOrder, item, qty, note);
+        }
+
+        loadInvoice();
+    }
+
+    private void modifySelectedItemQty(int delta) {
+        int r = invoiceTable.getSelectedRow();
+        if (r < 0 || currentOrder == null || r >= currentOrder.getDetails().size()) return;
+        OrderDetail d = currentOrder.getDetails().get(r);
+        int newQty = d.getQuantity() + delta;
+        if (newQty <= 0) {
+            removeSelectedItem();
+        } else {
+            orderController.updateItemQuantity(d.getId(), newQty);
+            loadInvoice();
+        }
+    }
+
+    private void removeSelectedItem() {
+        int r = invoiceTable.getSelectedRow();
+        if (r < 0 || currentOrder == null || r >= currentOrder.getDetails().size()) return;
+        OrderDetail d = currentOrder.getDetails().get(r);
+        orderController.removeItemFromOrder(d.getId());
+        loadInvoice();
+    }
+
+    private void editSelectedItemNote() {
+        int r = invoiceTable.getSelectedRow();
+        if (r < 0 || currentOrder == null || r >= currentOrder.getDetails().size()) return;
+        OrderDetail d = currentOrder.getDetails().get(r);
+        String itemName = d.getItem() != null ? d.getItem().getName() : "";
+        String note = JOptionPane.showInputDialog(this, "Nhập ghi chú cho món '" + itemName + "':", d.getNote() != null ? d.getNote() : "");
+        if (note != null) {
+            d.setNote(note.trim());
+            loadInvoice();
         }
     }
 
     private void loadInvoice() {
         invoiceTableModel.setRowCount(0);
-        if (currentOrder == null) return;
-        List<OrderDetail> details = orderController.getOrderDetails(currentOrder.getId());
-        currentOrder.setDetails(details);
-        for (OrderDetail d : details) {
-            String statusLabel = switch (d.getStatus()) {
-                case PENDING  -> d.isSentToKitchen() ? "Chờ bếp" : "Chưa gửi bếp";
-                case ACCEPTED -> "Bếp đã nhận";
-                case COOKING  -> "Đang nấu";
-                case DONE     -> "Nấu xong";
-                case REJECTED -> "Đã hủy";
-            };
+        if (currentOrder == null) {
+            updateTotal();
+            return;
+        }
+
+        currentOrder = orderDAO.findById(currentOrder.getId());
+        if (currentOrder == null) {
+            updateTotal();
+            return;
+        }
+
+        for (OrderDetail d : currentOrder.getDetails()) {
+            String name = d.getItem() != null ? d.getItem().getName() : "Món #" + d.getId();
             invoiceTableModel.addRow(new Object[]{
-                d.getId(),
-                d.getItem() != null ? d.getItem().getName() : "?",
+                name,
                 d.getQuantity(),
                 CurrencyFormat.format(d.getUnitPrice()),
                 CurrencyFormat.format(d.getSubtotal()),
-                statusLabel
+                d.getStatus() != null ? d.getStatus().name() : "PENDING"
             });
         }
         updateTotal();
@@ -678,143 +803,193 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         if (currentOrder == null) {
             lblSubtotal.setText("Tạm tính: 0 đ");
             lblDiscount.setText("Giảm giá: 0 đ");
-            lblVat.setText("VAT (10%): 0 đ");
-            lblTotal.setText("TỔNG TIỀN: 0 đ");
+            lblDeliveryFeeDisplay.setText("Phí ship: 0 đ");
+            lblTotal.setText("TỔNG: 0 đ");
             return;
         }
-        DiscountStrategy strategy = (DiscountStrategy) cbDiscount.getSelectedItem();
-        orderController.setDiscountStrategy(strategy != null ? strategy : new NoDiscount());
 
-        List<OrderDetail> details = currentOrder.getDetails();
-        BigDecimal subtotal = details.stream()
-            .filter(d -> d.getStatus() != ItemStatus.REJECTED)
+        BigDecimal sub = currentOrder.getDetails().stream()
             .map(OrderDetail::getSubtotal)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal discount = strategy != null ? strategy.apply(subtotal) : BigDecimal.ZERO;
-        BigDecimal afterDiscount = subtotal.subtract(discount);
-        BigDecimal vat = afterDiscount.multiply(new BigDecimal("0.10")).setScale(0, java.math.RoundingMode.HALF_UP);
-        BigDecimal total = afterDiscount.add(vat);
+        BigDecimal delFee = BigDecimal.ZERO;
+        if (currentOrderType == OrderType.DELIVERY) {
+            try {
+                delFee = new BigDecimal(txtDeliveryFee.getText().trim());
+            } catch (Exception ignored) {
+                delFee = new BigDecimal("20000");
+            }
+        }
 
-        lblSubtotal.setText("Tạm tính: " + CurrencyFormat.format(subtotal));
-        lblDiscount.setText("Giảm giá: -" + CurrencyFormat.format(discount));
-        lblVat.setText("VAT (10%): +" + CurrencyFormat.format(vat));
-        lblTotal.setText("TỔNG TIỀN: " + CurrencyFormat.format(total));
+        BigDecimal discount = BigDecimal.ZERO;
+        if (currentVoucher != null) {
+            discount = currentVoucher.computeDiscount(sub);
+        } else if (usedPoints > 0) {
+            discount = new BigDecimal(usedPoints * 100);
+        }
+
+        BigDecimal total = sub.subtract(discount).max(BigDecimal.ZERO).add(delFee);
+
+        lblSubtotal.setText("Tạm tính: " + CurrencyFormat.format(sub));
+        lblDiscount.setText("Giảm giá: " + CurrencyFormat.format(discount));
+        lblDeliveryFeeDisplay.setText("Phí ship: " + CurrencyFormat.format(delFee));
+        lblTotal.setText("TỔNG: " + CurrencyFormat.format(total));
+    }
+
+    private void updateInvoiceHeader() {
+        if (currentOrder != null) {
+            String typeStr = currentOrder.getOrderType() != null ? currentOrder.getOrderType().getDisplayName() : "Tại bàn";
+            String loc = selectedTable != null ? selectedTable.getName() : "Mang về / Giao hàng";
+            lblOrderInfo.setText("Đơn #" + currentOrder.getId() + " • " + loc + " • " + typeStr);
+        } else {
+            lblOrderInfo.setText("Chưa có đơn hàng đang mở");
+        }
+    }
+
+    private void resetDiscounts() {
+        currentCustomer = null;
+        currentVoucher = null;
+        usedPoints = 0;
+        txtCustomerPhone.setText("");
+        txtVoucherCode.setText("");
+        lblCustomerInfo.setText("Khách vãng lai");
+        btnUsePoints.setEnabled(false);
+    }
+
+    private void lookupCustomer() {
+        String phone = txtCustomerPhone.getText().trim();
+        if (phone.isEmpty()) return;
+        new SwingWorker<Customer, Void>() {
+            @Override protected Customer doInBackground() { return customerController.findByPhone(phone); }
+            @Override protected void done() {
+                try {
+                    currentCustomer = get();
+                    if (currentCustomer != null) {
+                        lblCustomerInfo.setText("<html><b>" + currentCustomer.getName() + "</b> ("
+                                + currentCustomer.getMembershipTier().getDisplayName() + ") • "
+                                + currentCustomer.getLoyaltyPoints() + " điểm</html>");
+                        btnUsePoints.setEnabled(currentCustomer.getLoyaltyPoints() > 0);
+                        if (currentOrder != null) {
+                            currentOrder.setCustomerId(currentCustomer.getId());
+                        }
+                    } else {
+                        lblCustomerInfo.setText("Chưa tìm thấy khách (SĐT mới)");
+                        btnUsePoints.setEnabled(false);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }.execute();
+    }
+
+    private void useCustomerPoints() {
+        if (currentCustomer == null || currentCustomer.getLoyaltyPoints() <= 0) return;
+        String pStr = JOptionPane.showInputDialog(this,
+            "Khách hiện có " + currentCustomer.getLoyaltyPoints() + " điểm.\nNhập số điểm muốn sử dụng (100 điểm = 10.000đ):",
+            String.valueOf(currentCustomer.getLoyaltyPoints()));
+        if (pStr == null) return;
+        try {
+            int p = Integer.parseInt(pStr.trim());
+            if (p < 0 || p > currentCustomer.getLoyaltyPoints()) throw new Exception();
+            this.usedPoints = p;
+            updateTotal();
+            JOptionPane.showMessageDialog(this, "Đã áp dụng giảm " + CurrencyFormat.format(new BigDecimal(p * 100)) + " từ điểm thưởng!");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Số điểm không hợp lệ!");
+        }
+    }
+
+    private void applyVoucherCode() {
+        String code = txtVoucherCode.getText().trim();
+        if (code.isEmpty()) return;
+        Voucher v = voucherDAO.findByCode(code);
+        if (v == null || !v.isActive()) {
+            JOptionPane.showMessageDialog(this, "Mã Voucher '" + code + "' không tồn tại hoặc đã hết hạn!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        BigDecimal sub = currentOrder != null ? currentOrder.getDetails().stream().map(OrderDetail::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add) : BigDecimal.ZERO;
+        if (!v.isValid(sub)) {
+            JOptionPane.showMessageDialog(this, "Đơn hàng chưa đạt giá trị tối thiểu " + CurrencyFormat.format(v.getMinOrderAmount()) + " để dùng Voucher!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        this.currentVoucher = v;
+        updateTotal();
+        JOptionPane.showMessageDialog(this, "Đã áp dụng Voucher [" + v.getCode() + "] thành công!");
     }
 
     private void sendToKitchen() {
-        if (currentOrder == null) {
-            JOptionPane.showMessageDialog(this, "Chưa chọn đơn hàng!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        if (invoiceTableModel.getRowCount() == 0) {
-            JOptionPane.showMessageDialog(this, "Đơn hàng chưa có món nào! Hãy chọn món trước.", "Thông báo", JOptionPane.WARNING_MESSAGE);
+        if (currentOrder == null || currentOrder.getDetails().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Chưa có món nào để gửi bếp!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
         orderController.sendToKitchen(currentOrder.getId());
         loadInvoice();
-        JOptionPane.showMessageDialog(this, "Đã gửi đơn hàng #" + currentOrder.getId() + " sang Nhà Bếp!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void checkout() {
-        if (currentOrder == null) {
-            JOptionPane.showMessageDialog(this, "Chưa có đơn hàng nào được chọn!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        if (invoiceTableModel.getRowCount() == 0) {
-            JOptionPane.showMessageDialog(this, "Đơn hàng chưa có món nào! Không thể thanh toán.", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        DiscountStrategy strategy = (DiscountStrategy) cbDiscount.getSelectedItem();
-        String payType = (String) cbPayment.getSelectedItem();
-
-        int confirm = JOptionPane.showConfirmDialog(this,
-            lblTotal.getText() + "\n\nXác nhận thanh toán phương thức: " + payType + "?",
-            "Xác nhận thanh toán", JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) return;
-
-        try {
-            String pdfPath = orderController.checkout(currentOrder, payType,
-                strategy != null ? strategy : new NoDiscount(), stockController);
-
-            int tableId = currentOrder.getTable().getId();
-            tableController.clearTable(tableId);
-
-            JOptionPane.showMessageDialog(this,
-                "Thanh toán thành công và đã giải phóng bàn!\n" +
-                (pdfPath != null ? "Hóa đơn PDF: " + pdfPath : "Không thể tạo file PDF"),
-                "Thanh toán thành công", JOptionPane.INFORMATION_MESSAGE);
-
-            currentOrder = null;
-            selectedTable = null;
-            invoiceTableModel.setRowCount(0);
-            updateInvoiceHeader();
-            updateTotal();
-            loadTables();
-        } catch (RuntimeException ex) {
-            JOptionPane.showMessageDialog(this, ex.getMessage(), "Chưa thể thanh toán", JOptionPane.WARNING_MESSAGE);
-        }
+        JOptionPane.showMessageDialog(this, "Đã gửi thông báo chế biến tới Màn hình Bếp!");
     }
 
     private void cancelOrder() {
         if (currentOrder == null) return;
-        int confirm = JOptionPane.showConfirmDialog(this,
-            "Xác nhận hủy toàn bộ đơn #" + currentOrder.getId() + " và giải phóng bàn?",
-            "Xác nhận hủy đơn", JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) return;
-
-        try {
-            orderController.cancelOrder(currentOrder.getId(), currentOrder.getTable().getId(),
-                currentOrder.getDetails(), stockController);
-            tableController.clearTable(currentOrder.getTable().getId());
+        int opt = JOptionPane.showConfirmDialog(this, "Bạn có chắc muốn hủy đơn #" + currentOrder.getId() + "?", "Xác nhận hủy", JOptionPane.YES_NO_OPTION);
+        if (opt == JOptionPane.YES_OPTION) {
+            orderController.cancelOrder(currentOrder.getId());
+            if (selectedTable != null) {
+                tableController.clearTable(selectedTable.getId());
+                selectedTable = null;
+            }
             currentOrder = null;
-            selectedTable = null;
-            invoiceTableModel.setRowCount(0);
+            resetDiscounts();
             updateInvoiceHeader();
-            updateTotal();
-            loadTables();
-            JOptionPane.showMessageDialog(this, "Đã hủy đơn hàng thành công!");
-        } catch (RuntimeException ex) {
-            JOptionPane.showMessageDialog(this, ex.getMessage(), "Không thể hủy đơn", JOptionPane.WARNING_MESSAGE);
+            loadInvoice();
+            loadTablesAsync();
+            JOptionPane.showMessageDialog(this, "Đã hủy đơn hàng!");
         }
     }
 
-    private void removeSelectedItem() {
-        if (currentOrder == null) return;
-        int row = invoiceTable.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Chọn món cần hủy trong bảng hóa đơn!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+    private void checkout() {
+        if (currentOrder == null || currentOrder.getDetails().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Không có đơn hàng hoặc chưa có món ăn để thanh toán!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        int detailId = (int) invoiceTableModel.getValueAt(row, 0);
-        String name = (String) invoiceTableModel.getValueAt(row, 1);
+        String payType = ((String) cbPayment.getSelectedItem()).startsWith("CASH") ? "CASH" : "TRANSFER";
+
         int confirm = JOptionPane.showConfirmDialog(this,
-            "Xác nhận hủy món '" + name + "' khỏi đơn?", "Xác nhận", JOptionPane.YES_NO_OPTION);
+            lblTotal.getText() + "\n\nXác nhận thanh toán phương thức: " + payType + "?\n(Hệ thống sẽ tự động in Bill nhiệt ESC/POS và xuất PDF)",
+            "Xác nhận thanh toán", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
         try {
-            orderController.cancelItem(detailId);
+            DiscountStrategy strategy = new NoDiscount();
+            if (currentVoucher != null) {
+                strategy = new VoucherDiscountStrategy(currentVoucher);
+            } else if (usedPoints > 0) {
+                strategy = new LoyaltyPointsDiscount(usedPoints);
+            }
+
+            String pdfPath = orderController.checkout(currentOrder, payType, strategy, customerController, shiftController);
+
+            if (selectedTable != null) {
+                tableController.clearTable(selectedTable.getId());
+            }
+
+            JOptionPane.showMessageDialog(this,
+                "Thanh toán thành công!\n" +
+                "Đã gửi lệnh in Bill nhiệt ESC/POS.\n" +
+                (pdfPath != null ? "Hóa đơn PDF: " + pdfPath : "Đã xuất hóa đơn"),
+                "Thanh toán thành công", JOptionPane.INFORMATION_MESSAGE);
+
+            currentOrder = null;
+            selectedTable = null;
+            resetDiscounts();
+            updateInvoiceHeader();
             loadInvoice();
-        } catch (RuntimeException ex) {
-            JOptionPane.showMessageDialog(this, ex.getMessage(), "Không thể hủy món", JOptionPane.WARNING_MESSAGE);
+            loadTablesAsync();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Lỗi thanh toán: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    // ================= OBSERVERS =================
-    @Override
-    public void onOrderChanged(OrderEvent event) {
-        SwingUtilities.invokeLater(() -> {
-            if (currentOrder != null && event.getOrderId() == currentOrder.getId()) {
-                loadInvoice();
-            }
-            loadTables();
-        });
-    }
-
-    @Override
-    public void onStockChanged(int menuItemId) {
-        SwingUtilities.invokeLater(this::loadMenuItems);
-    }
+    @Override public void onOrderChanged(OrderEvent event) { SwingUtilities.invokeLater(this::loadInvoice); }
+    @Override public void onStockChanged(int menuItemId) { SwingUtilities.invokeLater(this::loadMenuItems); }
 }

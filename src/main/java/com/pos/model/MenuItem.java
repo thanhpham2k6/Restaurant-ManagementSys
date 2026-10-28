@@ -8,12 +8,19 @@ public class MenuItem {
     private BigDecimal price;
     private boolean available;
     private int version;
+    private String imagePath;
 
     public MenuItem() {}
     public MenuItem(int id, Category category, String name, BigDecimal price, boolean available, int version) {
         this.id = id; this.category = category; this.name = name;
         this.price = price; this.available = available; this.version = version;
     }
+    public MenuItem(int id, Category category, String name, BigDecimal price, boolean available, int version, String imagePath) {
+        this.id = id; this.category = category; this.name = name;
+        this.price = price; this.available = available; this.version = version;
+        this.imagePath = imagePath;
+    }
+
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
     public Category getCategory() { return category; }
@@ -26,5 +33,8 @@ public class MenuItem {
     public void setAvailable(boolean available) { this.available = available; }
     public int getVersion() { return version; }
     public void setVersion(int version) { this.version = version; }
+    public String getImagePath() { return imagePath; }
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
+
     @Override public String toString() { return name; }
 }

@@ -34,7 +34,7 @@ public class TableController {
                     conn.rollback();
                     throw new RuntimeException("Không tìm thấy bàn ID=" + tableId);
                 }
-                if (table.getStatus() != TableStatus.EMPTY) {
+                if (!table.getStatus().isAvailable()) {
                     conn.rollback();
                     throw new TableBusyException("Bàn '" + table.getName() + "' đang có khách hoặc đã được đặt trước!");
                 }
@@ -77,7 +77,7 @@ public class TableController {
                     conn.rollback();
                     throw new RuntimeException("Không tìm thấy bàn đích!");
                 }
-                if (toTable.getStatus() != TableStatus.EMPTY) {
+                if (!toTable.getStatus().isAvailable()) {
                     conn.rollback();
                     throw new TableBusyException("Bàn đích '" + toTable.getName() + "' không còn trống!");
                 }
@@ -90,7 +90,7 @@ public class TableController {
                 int fromTableId = order.getTable().getId();
 
                 tableDAO.updateStatus(conn, toTableId, TableStatus.OCCUPIED);
-                tableDAO.updateStatus(conn, fromTableId, TableStatus.EMPTY);
+                tableDAO.updateStatus(conn, fromTableId, TableStatus.AVAILABLE);
 
                 try (PreparedStatement ps = conn.prepareStatement("UPDATE orders SET table_id=? WHERE id=?")) {
                     ps.setInt(1, toTableId);
@@ -142,8 +142,8 @@ public class TableController {
                     ps.executeUpdate();
                 }
 
-                // Trả bàn từ về EMPTY
-                tableDAO.updateStatus(conn, fromTableId, TableStatus.EMPTY);
+                // Trả bàn từ về AVAILABLE
+                tableDAO.updateStatus(conn, fromTableId, TableStatus.AVAILABLE);
 
                 conn.commit();
                 log.info("Gộp đơn #{} vào đơn #{}, giải phóng bàn ID {}", fromOrderId, toOrderId, fromTableId);
@@ -160,11 +160,24 @@ public class TableController {
     public void clearTable(int tableId) {
         try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
             conn.setAutoCommit(false);
-            tableDAO.updateStatus(conn, tableId, TableStatus.EMPTY);
+            tableDAO.updateStatus(conn, tableId, TableStatus.AVAILABLE);
             conn.commit();
         } catch (SQLException e) {
             log.error("clearTable error", e);
         }
+    }
+
+    public void updateTableStatus(int tableId, TableStatus status) {
+        tableDAO.updateStatus(tableId, status);
+    }
+
+    public void addTable(String name, int capacity) {
+        DiningTable t = new DiningTable();
+        t.setName(name);
+        t.setCapacity(capacity);
+        t.setStatus(TableStatus.AVAILABLE);
+        t.setQrCodeToken("QR-TABLE-" + System.currentTimeMillis() % 10000);
+        tableDAO.insert(t);
     }
 
     public static class TableBusyException extends Exception {

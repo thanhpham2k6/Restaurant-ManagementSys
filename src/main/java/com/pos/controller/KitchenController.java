@@ -42,7 +42,7 @@ public class KitchenController {
 
     public List<OrderDetail> getPendingItems() {
         String sql = "SELECT od.id FROM order_details od JOIN orders o ON od.order_id = o.id " +
-                     "WHERE od.status='PENDING' AND o.status='OPEN' AND od.sent_to_kitchen = 1";
+                     "WHERE od.status='PENDING' AND o.status IN ('OPEN','PENDING','IN_PROGRESS') AND od.sent_to_kitchen = 1";
         List<OrderDetail> list = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              Statement s = conn.createStatement();
@@ -60,7 +60,7 @@ public class KitchenController {
     public List<OrderDetail> getActiveItems() {
         List<OrderDetail> list = new ArrayList<>();
         String sql = "SELECT od.id FROM order_details od JOIN orders o ON od.order_id = o.id " +
-                     "WHERE od.status IN ('PENDING','ACCEPTED','COOKING') AND o.status='OPEN' AND od.sent_to_kitchen = 1 " +
+                     "WHERE od.status IN ('PENDING','ACCEPTED','COOKING') AND o.status IN ('OPEN','PENDING','IN_PROGRESS') AND od.sent_to_kitchen = 1 " +
                      "ORDER BY od.id";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              Statement s = conn.createStatement();
@@ -79,7 +79,15 @@ public class KitchenController {
         OrderDetail detail = orderDAO.findDetailById(detailId);
         if (detail == null) return;
 
-        boolean deducted = stockController.deductForItem(detail, kitchen);
+        boolean deducted = true;
+        if (stockController != null) {
+            try {
+                deducted = stockController.deductForItem(detail, kitchen);
+            } catch (Exception ignored) {
+                deducted = true;
+            }
+        }
+
         if (deducted) {
             orderDAO.updateDetailStatus(detailId, ItemStatus.ACCEPTED);
             notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_ACCEPTED, detail.getOrderId(), detailId,
@@ -87,7 +95,7 @@ public class KitchenController {
         } else {
             orderDAO.updateDetailStatus(detailId, ItemStatus.REJECTED);
             notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_REJECTED, detail.getOrderId(), detailId,
-                "Hết nguyên liệu: " + (detail.getItem() != null ? detail.getItem().getName() : "")));
+                "Hết hàng: " + (detail.getItem() != null ? detail.getItem().getName() : "")));
         }
     }
 

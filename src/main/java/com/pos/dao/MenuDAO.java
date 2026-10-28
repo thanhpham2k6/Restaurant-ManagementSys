@@ -20,7 +20,7 @@ public class MenuDAO {
             rs.getString("cat_name"),
             CategoryType.valueOf(rs.getString("cat_type"))
         );
-        return new MenuItem(
+        MenuItem item = new MenuItem(
             rs.getInt("id"),
             cat,
             rs.getString("name"),
@@ -28,10 +28,14 @@ public class MenuDAO {
             rs.getBoolean("is_available"),
             rs.getInt("version")
         );
+        try {
+            item.setImagePath(rs.getString("image_path"));
+        } catch (SQLException ignored) {}
+        return item;
     }
 
     private static final String BASE_SQL =
-        "SELECT m.id, m.name, m.price, m.is_available, m.version, " +
+        "SELECT m.id, m.name, m.price, m.image_path, m.is_available, m.version, " +
         "c.id as cat_id, c.name as cat_name, c.type as cat_type " +
         "FROM menu_items m JOIN categories c ON m.category_id = c.id";
 
@@ -85,13 +89,14 @@ public class MenuDAO {
     }
 
     public int insert(MenuItem item) {
-        String sql = "INSERT INTO menu_items (category_id, name, price, is_available) VALUES (?,?,?,?)";
+        String sql = "INSERT INTO menu_items (category_id, name, price, image_path, is_available) VALUES (?,?,?,?,?)";
         try (Connection c = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, item.getCategory().getId());
             ps.setString(2, item.getName());
             ps.setBigDecimal(3, item.getPrice());
-            ps.setBoolean(4, item.isAvailable());
+            ps.setString(4, item.getImagePath());
+            ps.setBoolean(5, item.isAvailable());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return keys.getInt(1);
@@ -101,14 +106,15 @@ public class MenuDAO {
     }
 
     public void update(MenuItem item) {
-        String sql = "UPDATE menu_items SET category_id=?, name=?, price=?, is_available=? WHERE id=?";
+        String sql = "UPDATE menu_items SET category_id=?, name=?, price=?, image_path=?, is_available=? WHERE id=?";
         try (Connection c = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, item.getCategory().getId());
             ps.setString(2, item.getName());
             ps.setBigDecimal(3, item.getPrice());
-            ps.setBoolean(4, item.isAvailable());
-            ps.setInt(5, item.getId());
+            ps.setString(4, item.getImagePath());
+            ps.setBoolean(5, item.isAvailable());
+            ps.setInt(6, item.getId());
             ps.executeUpdate();
         } catch (SQLException e) { log.error("update menu item error", e); }
     }

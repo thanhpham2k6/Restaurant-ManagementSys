@@ -31,19 +31,10 @@ public class Main {
             log.warn("Cannot apply FlatLaf theme", e);
         }
 
-        // Tự động kiểm tra và đồng bộ công thức định lượng món ăn trên luồng nền
-        new Thread(() -> {
-            try {
-                com.pos.utils.RecipeSeeder.seedMissingRecipesIfNecessary();
-            } catch (Exception e) {
-                log.warn("Lỗi khi kiểm tra công thức món ăn: {}", e.getMessage());
-            }
-        }, "RecipeSeederThread").start();
-
         SwingUtilities.invokeLater(() -> {
             LoginForm loginForm = new LoginForm();
             loginForm.setVisible(true);
         });
-        log.info("Hệ thống Restaurant POS đã khởi động");
+        log.info("Hệ thống Restaurant POS Enterprise v3.0 đã khởi động thành công");
     }
 }

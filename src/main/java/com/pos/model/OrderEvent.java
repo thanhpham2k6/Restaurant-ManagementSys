@@ -1,7 +1,16 @@
 package com.pos.model;
 
 public class OrderEvent {
-    public enum Type { ITEM_SENT, ITEM_ACCEPTED, ITEM_COOKING, ITEM_DONE, ITEM_REJECTED, ORDER_CANCELLED, ORDER_PAID }
+    public enum Type {
+        ITEM_SENT,
+        ITEM_ACCEPTED,
+        ITEM_COOKING,
+        ITEM_DONE,
+        ITEM_REJECTED,
+        ORDER_CREATED,
+        ORDER_CANCELLED,
+        ORDER_PAID
+    }
 
     private final Type type;
     private final int orderId;

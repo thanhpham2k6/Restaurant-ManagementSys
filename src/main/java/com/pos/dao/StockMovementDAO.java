@@ -1,6 +1,7 @@
 package com.pos.dao;
 
-import com.pos.model.*;
+import com.pos.model.MovementType;
+import com.pos.model.StockMovement;
 import com.pos.utils.DatabaseConnection;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,53 +13,83 @@ import java.util.List;
 public class StockMovementDAO {
     private static final Logger log = LogManager.getLogger(StockMovementDAO.class);
 
+    private StockMovement mapRow(ResultSet rs) throws SQLException {
+        StockMovement sm = new StockMovement();
+        sm.setId(rs.getInt("id"));
+        sm.setItemId(rs.getInt("item_id"));
+        try { sm.setItemName(rs.getString("item_name")); } catch (SQLException ignored) {}
+        int supId = rs.getInt("supplier_id");
+        if (!rs.wasNull()) sm.setSupplierId(supId);
+        try { sm.setSupplierName(rs.getString("supplier_name")); } catch (SQLException ignored) {}
+        sm.setUserId(rs.getInt("user_id"));
+        try { sm.setUserFullName(rs.getString("user_full_name")); } catch (SQLException ignored) {}
+        sm.setType(MovementType.valueOf(rs.getString("type")));
+        sm.setQuantity(rs.getBigDecimal("quantity"));
+        sm.setUnitPrice(rs.getBigDecimal("unit_price"));
+        sm.setNote(rs.getString("note"));
+        Timestamp ca = rs.getTimestamp("created_at");
+        if (ca != null) sm.setCreatedAt(ca.toLocalDateTime());
+        return sm;
+    }
+
+    private static final String BASE_SELECT =
+        "SELECT sm.*, i.name as item_name, s.name as supplier_name, u.full_name as user_full_name " +
+        "FROM stock_movements sm " +
+        "JOIN inventory_items i ON sm.item_id = i.id " +
+        "JOIN users u ON sm.user_id = u.id " +
+        "LEFT JOIN suppliers s ON sm.supplier_id = s.id ";
+
     public void insert(Connection conn, StockMovement sm) throws SQLException {
-        String sql = "INSERT INTO stock_movements (ingredient_id, user_id, order_id, type, quantity, note) VALUES (?,?,?,?,?,?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, sm.getIngredient().getId());
-            ps.setInt(2, sm.getUser().getId());
-            if (sm.getOrderId() != null) ps.setInt(3, sm.getOrderId()); else ps.setNull(3, Types.INTEGER);
+        String sql = "INSERT INTO stock_movements (item_id, supplier_id, user_id, type, quantity, unit_price, note) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setInt(1, sm.getItemId());
+            if (sm.getSupplierId() != null) {
+                ps.setInt(2, sm.getSupplierId());
+            } else {
+                ps.setNull(2, Types.INTEGER);
+            }
+            ps.setInt(3, sm.getUserId());
             ps.setString(4, sm.getType().name());
             ps.setBigDecimal(5, sm.getQuantity());
-            ps.setString(6, sm.getNote());
+            ps.setBigDecimal(6, sm.getUnitPrice());
+            ps.setString(7, sm.getNote());
             ps.executeUpdate();
+            try (ResultSet gk = ps.getGeneratedKeys()) {
+                if (gk.next()) sm.setId(gk.getInt(1));
+            }
         }
     }
 
-    public List<StockMovement> findByIngredient(int ingredientId) {
+    public void insert(StockMovement sm) {
+        try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
+            insert(conn, sm);
+        } catch (SQLException e) {
+            log.error("insert stock movement error", e);
+        }
+    }
+
+    public List<StockMovement> findAll() {
         List<StockMovement> list = new ArrayList<>();
-        String sql = "SELECT sm.*, i.name as ing_name, i.unit, i.stock_qty, i.min_qty, i.is_active, " +
-                     "u.username, u.full_name, u.role, u.password_hash, u.is_active as u_active " +
-                     "FROM stock_movements sm " +
-                     "JOIN ingredients i ON sm.ingredient_id = i.id " +
-                     "JOIN users u ON sm.user_id = u.id " +
-                     "WHERE sm.ingredient_id = ? ORDER BY sm.created_at DESC";
+        String sql = BASE_SELECT + "ORDER BY sm.created_at DESC";
+        try (Connection c = DatabaseConnection.getInstance().getConnection();
+             Statement stmt = c.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) list.add(mapRow(rs));
+        } catch (SQLException e) { log.error("findAll movements error", e); }
+        return list;
+    }
+
+    public List<StockMovement> findByItem(int itemId) {
+        List<StockMovement> list = new ArrayList<>();
+        String sql = BASE_SELECT + "WHERE sm.item_id = ? ORDER BY sm.created_at DESC";
         try (Connection c = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, ingredientId);
+            ps.setInt(1, itemId);
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Ingredient ing = new Ingredient(rs.getInt("ingredient_id"), rs.getString("ing_name"),
-                        rs.getString("unit"), rs.getBigDecimal("stock_qty"), rs.getBigDecimal("min_qty"),
-                        rs.getBoolean("is_active"));
-                    User u = new User(rs.getInt("user_id"), rs.getString("username"),
-                        rs.getString("password_hash"), rs.getString("full_name"),
-                        Role.valueOf(rs.getString("role")), rs.getBoolean("u_active"));
-                    StockMovement sm = new StockMovement();
-                    sm.setId(rs.getInt("id"));
-                    sm.setIngredient(ing);
-                    sm.setUser(u);
-                    int oid = rs.getInt("order_id");
-                    sm.setOrderId(rs.wasNull() ? null : oid);
-                    sm.setType(MovementType.valueOf(rs.getString("type")));
-                    sm.setQuantity(rs.getBigDecimal("quantity"));
-                    sm.setNote(rs.getString("note"));
-                    Timestamp ca = rs.getTimestamp("created_at");
-                    if (ca != null) sm.setCreatedAt(ca.toLocalDateTime());
-                    list.add(sm);
-                }
+                while (rs.next()) list.add(mapRow(rs));
             }
-        } catch (SQLException e) { log.error("findByIngredient movement error", e); }
+        } catch (SQLException e) { log.error("findByItem movements error", e); }
         return list;
     }
 }

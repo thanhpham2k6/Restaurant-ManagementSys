@@ -360,6 +360,16 @@ public class OrderDAO {
         } catch (SQLException e) { log.error("updateDetailQuantity error", e); }
     }
 
+    public void updateDetailNote(int detailId, String note) {
+        String sql = "UPDATE order_details SET note = ? WHERE id = ?";
+        try (Connection c = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, note);
+            ps.setInt(2, detailId);
+            ps.executeUpdate();
+        } catch (SQLException e) { log.error("updateDetailNote error", e); }
+    }
+
     public void deleteDetail(int detailId) {
         String sql = "DELETE FROM order_details WHERE id = ?";
         try (Connection c = DatabaseConnection.getInstance().getConnection();

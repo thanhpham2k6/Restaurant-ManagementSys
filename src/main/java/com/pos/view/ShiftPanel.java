@@ -2,12 +2,14 @@ package com.pos.view;
 
 import com.pos.controller.ShiftController;
 import com.pos.dao.UserDAO;
+import com.pos.model.Role;
 import com.pos.model.Shift;
 import com.pos.model.ShiftStatus;
 import com.pos.model.User;
 import com.pos.utils.CurrencyFormat;
 import com.pos.utils.DateUtils;
 import com.pos.utils.PrinterService;
+import com.pos.utils.TableUtils;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -56,12 +58,17 @@ public class ShiftPanel extends JPanel {
     private JPanel timetableGrid;
     private List<Shift> cachedAllShifts = new ArrayList<>();
 
+    private final com.pos.dao.EmployeeAttendanceDAO attendanceDAO = new com.pos.dao.EmployeeAttendanceDAO();
+    private DefaultTableModel attendanceModel;
+    private JTable attendanceTable;
+
     public ShiftPanel(User currentUser) {
         this.currentUser = currentUser;
         this.shiftController = new ShiftController();
         this.currentWeekMonday = LocalDate.now().with(DayOfWeek.MONDAY);
         initComponents();
         loadDataAsync();
+        loadAttendanceData();
     }
 
     private void initComponents() {
@@ -73,6 +80,7 @@ public class ShiftPanel extends JPanel {
 
         tabbedPane.addTab("Vận hành ca & Bàn giao", createLiveShiftPanel());
         tabbedPane.addTab("Thời khóa biểu phân ca (Lịch tuần)", createTimetablePanel());
+        tabbedPane.addTab("Chấm công & Điểm danh nhân viên", createAttendanceTabPanel());
 
         add(tabbedPane, BorderLayout.CENTER);
     }
@@ -153,7 +161,7 @@ public class ShiftPanel extends JPanel {
         shiftTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         shiftTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         shiftTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        shiftTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(shiftTable);
 
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);
@@ -225,7 +233,10 @@ public class ShiftPanel extends JPanel {
         btnSchedule.addActionListener(e -> showScheduleShiftDialog());
         btnRefreshCal.addActionListener(e -> loadDataAsync());
 
-        rightPanel.add(btnSchedule);
+        // Chỉ Quản lý mới được phép xếp lịch ca
+        if (currentUser.getRole() == Role.MANAGER) {
+            rightPanel.add(btnSchedule);
+        }
         rightPanel.add(btnRefreshCal);
 
         controlBar.add(navPanel, BorderLayout.WEST);
@@ -375,9 +386,52 @@ public class ShiftPanel extends JPanel {
     }
 
     private void showScheduleShiftDialog() {
+        if (currentUser.getRole() != Role.MANAGER) {
+            JOptionPane.showMessageDialog(this, "Chỉ Quản lý mới có quyền xếp lịch ca làm việc!", "Từ chối", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         List<User> users = userDAO.findAll();
         JComboBox<User> cbUser = new JComboBox<>(users.toArray(new User[0]));
+
+        // Date selection: JSpinner Date picker + Manual textfield + Quick buttons
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        JSpinner spinDate = new JSpinner(new SpinnerDateModel(cal.getTime(), null, null, java.util.Calendar.DAY_OF_MONTH));
+        JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(spinDate, "yyyy-MM-dd");
+        spinDate.setEditor(dateEditor);
+
         JTextField txtDate = new JTextField(LocalDate.now().toString());
+        txtDate.setColumns(10);
+
+        spinDate.addChangeListener(e -> {
+            java.util.Date d = (java.util.Date) spinDate.getValue();
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+            txtDate.setText(sdf.format(d));
+        });
+
+        JButton btnToday = new JButton("Hôm nay");
+        JButton btnTomorrow = new JButton("Ngày mai");
+        btnToday.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        btnTomorrow.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+        btnToday.addActionListener(e -> {
+            LocalDate now = LocalDate.now();
+            txtDate.setText(now.toString());
+            spinDate.setValue(java.sql.Date.valueOf(now));
+        });
+        btnTomorrow.addActionListener(e -> {
+            LocalDate tom = LocalDate.now().plusDays(1);
+            txtDate.setText(tom.toString());
+            spinDate.setValue(java.sql.Date.valueOf(tom));
+        });
+
+        JPanel dateInputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        dateInputPanel.add(spinDate);
+        dateInputPanel.add(new JLabel(" hoặc tự điền:"));
+        dateInputPanel.add(txtDate);
+        dateInputPanel.add(btnToday);
+        dateInputPanel.add(btnTomorrow);
+
         String[] slots = {
             "Ca Sáng (06:00 - 14:00)",
             "Ca Chiều (14:00 - 22:00)",
@@ -390,7 +444,7 @@ public class ShiftPanel extends JPanel {
 
         JPanel p = new JPanel(new GridLayout(5, 2, 8, 8));
         p.add(new JLabel("Chọn thu ngân:")); p.add(cbUser);
-        p.add(new JLabel("Ngày làm việc (yyyy-MM-dd):")); p.add(txtDate);
+        p.add(new JLabel("Chọn ngày làm việc:")); p.add(dateInputPanel);
         p.add(new JLabel("Khung giờ ca:")); p.add(cbSlot);
         p.add(new JLabel("Tiền lẻ bàn giao (VND):")); p.add(txtInitCash);
         p.add(new JLabel("Ghi chú ca:")); p.add(txtNote);
@@ -537,6 +591,7 @@ public class ShiftPanel extends JPanel {
     }
 
     private void showCloseShiftDialog() {
+        shiftController.refreshCurrentShift(); // Refresh để lấy trạng thái mới nhất từ DB
         Shift cur = shiftController.getCurrentShift();
         if (cur == null || !cur.isOpen()) {
             JOptionPane.showMessageDialog(this, "Hiện tại không có ca làm việc nào đang mở!", "Thông báo", JOptionPane.WARNING_MESSAGE);
@@ -674,5 +729,201 @@ public class ShiftPanel extends JPanel {
         dialog.add(btnP, BorderLayout.SOUTH);
 
         dialog.setVisible(true);
+    }
+
+    // ==================== TAB 3: ATTENDANCE & TIMEKEEPING ====================
+    private JPanel createAttendanceTabPanel() {
+        JPanel main = new JPanel(new BorderLayout(14, 14));
+        main.setBorder(new EmptyBorder(16, 20, 20, 20));
+        main.setOpaque(false);
+
+        // Header & Actions
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+
+        JPanel titleP = new JPanel(new GridLayout(2, 1, 2, 2));
+        titleP.setOpaque(false);
+        JLabel lblTitle = new JLabel("CHẤM CÔNG & ĐIỂM DANH NHÂN VIÊN");
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblTitle.setForeground(new Color(30, 41, 59));
+        JLabel lblSub = new JLabel("Ghi nhận giờ vào, giờ ra, tổng thời gian làm việc và theo dõi chuyên cần hàng ngày");
+        lblSub.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        lblSub.setForeground(new Color(100, 116, 139));
+        titleP.add(lblTitle);
+        titleP.add(lblSub);
+        top.add(titleP, BorderLayout.WEST);
+
+        JPanel actP = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actP.setOpaque(false);
+
+        JButton btnIn = new JButton("⚡ Điểm danh Vào ca (Check-in)");
+        btnIn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnIn.setBackground(new Color(16, 185, 129));
+        btnIn.setForeground(Color.WHITE);
+        btnIn.setFocusPainted(false);
+        btnIn.addActionListener(e -> handleCheckIn());
+
+        JButton btnOut = new JButton("✓ Điểm danh Ra ca (Check-out)");
+        btnOut.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnOut.setBackground(new Color(239, 68, 68));
+        btnOut.setForeground(Color.WHITE);
+        btnOut.setFocusPainted(false);
+        btnOut.addActionListener(e -> handleCheckOut());
+
+        JButton btnRef = new JButton("Làm mới");
+        btnRef.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btnRef.setBackground(new Color(238, 242, 246));
+        btnRef.setFocusPainted(false);
+        btnRef.addActionListener(e -> loadAttendanceData());
+
+        actP.add(btnIn);
+        actP.add(btnOut);
+        actP.add(btnRef);
+        top.add(actP, BorderLayout.EAST);
+
+        main.add(top, BorderLayout.NORTH);
+
+        // Center Table Card
+        JPanel card = new JPanel(new BorderLayout(0, 10));
+        card.setBackground(Color.WHITE);
+        card.setBorder(new CompoundBorder(
+            new LineBorder(new Color(226, 232, 240), 1, true),
+            new EmptyBorder(14, 16, 16, 16)
+        ));
+
+        String[] cols = {"ID", "Họ tên nhân viên", "Chức vụ", "Ngày làm", "Ca làm việc", "Giờ vào", "Giờ ra", "Tổng giờ (h)", "Trạng thái", "Ghi chú"};
+        attendanceModel = new DefaultTableModel(cols, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+            @Override
+            public Class<?> getColumnClass(int c) {
+                if (c == 0) return Integer.class;
+                return String.class;
+            }
+        };
+
+        attendanceTable = new JTable(attendanceModel);
+        attendanceTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        attendanceTable.setRowHeight(32);
+        attendanceTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        attendanceTable.getTableHeader().setBackground(new Color(248, 250, 252));
+        attendanceTable.getColumnModel().getColumn(0).setMaxWidth(60);
+        TableUtils.applySmartSorting(attendanceTable);
+
+        DefaultTableCellRenderer statusRend = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+                JLabel l = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col);
+                l.setHorizontalAlignment(SwingConstants.CENTER);
+                String val = String.valueOf(value);
+                if (val.contains("Đúng giờ")) {
+                    l.setForeground(new Color(16, 185, 129));
+                    l.setFont(l.getFont().deriveFont(Font.BOLD));
+                } else if (val.contains("Đi muộn") || val.contains("Về sớm")) {
+                    l.setForeground(new Color(245, 158, 11));
+                    l.setFont(l.getFont().deriveFont(Font.BOLD));
+                } else {
+                    l.setForeground(new Color(100, 116, 139));
+                }
+                return l;
+            }
+        };
+        attendanceTable.getColumnModel().getColumn(8).setCellRenderer(statusRend);
+
+        JScrollPane sp = new JScrollPane(attendanceTable);
+        sp.setBorder(new LineBorder(new Color(226, 232, 240), 1));
+        card.add(sp, BorderLayout.CENTER);
+
+        main.add(card, BorderLayout.CENTER);
+        return main;
+    }
+
+    private void loadAttendanceData() {
+        if (attendanceModel == null) return;
+        SwingWorker<List<com.pos.model.EmployeeAttendance>, Void> worker = new SwingWorker<>() {
+            @Override
+            protected List<com.pos.model.EmployeeAttendance> doInBackground() {
+                return attendanceDAO.findAll();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<com.pos.model.EmployeeAttendance> list = get();
+                    attendanceModel.setRowCount(0);
+                    DateTimeFormatter tf = DateTimeFormatter.ofPattern("HH:mm:ss");
+                    DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+                    for (com.pos.model.EmployeeAttendance a : list) {
+                        String inStr = a.getCheckInTime() != null ? a.getCheckInTime().format(tf) : "-";
+                        String outStr = a.getCheckOutTime() != null ? a.getCheckOutTime().format(tf) : "(Đang làm)";
+                        String dateStr = a.getWorkDate() != null ? a.getWorkDate().format(df) : "-";
+
+                        attendanceModel.addRow(new Object[]{
+                            a.getId(),
+                            a.getEmployeeName(),
+                            a.getRoleName(),
+                            dateStr,
+                            a.getShiftName(),
+                            inStr,
+                            outStr,
+                            a.getHoursWorked() != null ? a.getHoursWorked().toString() : "0.00",
+                            a.getStatus(),
+                            a.getNote() != null ? a.getNote() : ""
+                        });
+                    }
+                } catch (Exception ignored) {}
+            }
+        };
+        worker.execute();
+    }
+
+    private void handleCheckIn() {
+        // Form chọn ca
+        String[] shifts = {"Ca Sáng (08:00 - 16:00)", "Ca Chiều (16:00 - 23:00)", "Ca Fulltime Cả Ngày", "Ca Gãy / Linh hoạt"};
+        JComboBox<String> cbShift = new JComboBox<>(shifts);
+        JTextField txtNote = new JTextField();
+
+        JPanel p = new JPanel(new GridLayout(2, 2, 8, 8));
+        p.add(new JLabel("Chọn ca làm:"));
+        p.add(cbShift);
+        p.add(new JLabel("Ghi chú:"));
+        p.add(txtNote);
+
+        int res = JOptionPane.showConfirmDialog(this, p, "ĐIỂM DANH VÀO CA (CHECK-IN) - " + currentUser.getFullName(), JOptionPane.OK_CANCEL_OPTION);
+        if (res == JOptionPane.OK_OPTION) {
+            String shiftName = (String) cbShift.getSelectedItem();
+            String note = txtNote.getText().trim();
+            int newId = attendanceDAO.checkIn(currentUser.getId(), shiftName, note);
+            if (newId > 0) {
+                JOptionPane.showMessageDialog(this, "Điểm danh Vào ca thành công lúc " + DateUtils.format(LocalDateTime.now()), "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                loadAttendanceData();
+            } else {
+                JOptionPane.showMessageDialog(this, "Lỗi khi ghi nhận điểm danh!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void handleCheckOut() {
+        com.pos.model.EmployeeAttendance active = attendanceDAO.findActiveCheckIn(currentUser.getId(), LocalDate.now());
+        if (active == null) {
+            JOptionPane.showMessageDialog(this, "Bạn chưa điểm danh Vào ca hôm nay hoặc đã hoàn tất Ra ca rồi!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int res = JOptionPane.showConfirmDialog(this,
+            "Xác nhận Ra ca (Check-out) cho [" + currentUser.getFullName() + "] lúc " + DateUtils.format(LocalDateTime.now()) + "?",
+            "Xác nhận Ra Ca",
+            JOptionPane.YES_NO_OPTION);
+
+        if (res == JOptionPane.YES_OPTION) {
+            boolean ok = attendanceDAO.checkOut(active.getId(), "Hoàn tất ca đúng giờ");
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Điểm danh Ra ca thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                loadAttendanceData();
+            } else {
+                JOptionPane.showMessageDialog(this, "Lỗi khi cập nhật điểm danh ra ca!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 }

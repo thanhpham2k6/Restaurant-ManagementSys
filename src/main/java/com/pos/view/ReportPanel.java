@@ -7,6 +7,7 @@ import com.pos.dao.UserDAO;
 import com.pos.model.*;
 import com.pos.utils.CurrencyFormat;
 import com.pos.utils.DateUtils;
+import com.pos.utils.TableUtils;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
@@ -175,7 +176,7 @@ public class ReportPanel extends JPanel implements OrderObserver {
         orderTable.getTableHeader().setForeground(new Color(51, 65, 85));
         orderTable.setSelectionBackground(new Color(237, 242, 247));
         orderTable.setSelectionForeground(new Color(15, 23, 42));
-        orderTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(orderTable);
 
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
@@ -223,7 +224,7 @@ public class ReportPanel extends JPanel implements OrderObserver {
         invoiceFileTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         invoiceFileTable.getTableHeader().setBackground(new Color(241, 245, 249));
         invoiceFileTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        invoiceFileTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(invoiceFileTable);
 
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);

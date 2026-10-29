@@ -37,6 +37,10 @@ public final class DishImageManager {
         return getDishIcon(itemId, imagePath, categoryName, itemName, width, height, 12);
     }
 
+    public static void clearCache() {
+        CACHE.clear();
+    }
+
     private static ImageIcon loadOrGenerateImage(int itemId, String imagePath, String categoryName, String itemName, int width, int height, int cornerRadius) {
         BufferedImage rawImage = null;
 
@@ -47,15 +51,28 @@ public final class DishImageManager {
         candidateNames.add(itemId + ".jpg");
         candidateNames.add(itemId + ".png");
 
-        // 1. Thử load từ resource bên trong classpath (khi chạy JAR)
+        // 0. Thử load trực tiếp nếu là đường dẫn tuyệt đối hoặc file tồn tại
         for (String cName : candidateNames) {
-            String path = cName.startsWith("/") ? cName : "/images/dishes/" + cName;
-            try (InputStream in = DishImageManager.class.getResourceAsStream(path)) {
-                if (in != null) {
-                    rawImage = ImageIO.read(in);
+            try {
+                File fDirect = new File(cName);
+                if (fDirect.exists() && fDirect.isFile()) {
+                    rawImage = ImageIO.read(fDirect);
                     if (rawImage != null) break;
                 }
             } catch (Exception ignored) {}
+        }
+
+        // 1. Thử load từ resource bên trong classpath (khi chạy JAR)
+        if (rawImage == null) {
+            for (String cName : candidateNames) {
+                String path = cName.startsWith("/") ? cName : "/images/dishes/" + cName;
+                try (InputStream in = DishImageManager.class.getResourceAsStream(path)) {
+                    if (in != null) {
+                        rawImage = ImageIO.read(in);
+                        if (rawImage != null) break;
+                    }
+                } catch (Exception ignored) {}
+            }
         }
 
         // 2. Thử load từ thư mục images/dishes/ ngoài đĩa hoặc src/main/resources

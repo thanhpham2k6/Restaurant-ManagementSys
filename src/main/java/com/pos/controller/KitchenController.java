@@ -79,24 +79,12 @@ public class KitchenController {
         OrderDetail detail = orderDAO.findDetailById(detailId);
         if (detail == null) return;
 
-        boolean deducted = true;
-        if (stockController != null) {
-            try {
-                deducted = stockController.deductForItem(detail, kitchen);
-            } catch (Exception ignored) {
-                deducted = true;
-            }
-        }
-
-        if (deducted) {
-            orderDAO.updateDetailStatus(detailId, ItemStatus.ACCEPTED);
-            notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_ACCEPTED, detail.getOrderId(), detailId,
-                "Bếp đã nhận chế biến: " + (detail.getItem() != null ? detail.getItem().getName() : "")));
-        } else {
-            orderDAO.updateDetailStatus(detailId, ItemStatus.REJECTED);
-            notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_REJECTED, detail.getOrderId(), detailId,
-                "Hết hàng: " + (detail.getItem() != null ? detail.getItem().getName() : "")));
-        }
+        // Bếp nhận chế biến món. Theo quy trình nhà hàng thực tế, hệ thống không tự động trừ kho
+        // nguyên liệu tức thời (vì mỗi món ăn có độ tiêu hao linh hoạt, gia vị nêm nếm khó trừ từng gram).
+        // Việc trừ tồn kho thực tế sẽ do Người kiểm kê hàng hóa (Stocktake) hoặc Phiếu xuất kho Bếp thực hiện.
+        orderDAO.updateDetailStatus(detailId, ItemStatus.ACCEPTED);
+        notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_ACCEPTED, detail.getOrderId(), detailId,
+            "Bếp đã nhận chế biến: " + (detail.getItem() != null ? detail.getItem().getName() : "")));
     }
 
     public void rejectItem(int detailId, String reason) {

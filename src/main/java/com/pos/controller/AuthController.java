@@ -83,6 +83,10 @@ public class AuthController {
         }
 
         if (matched) {
+            if (user.getFullName() != null) {
+                user.setFullName(com.pos.utils.DatabaseEncodingFixer.fixMojibake(user.getFullName()));
+            }
+            com.pos.utils.DatabaseEncodingFixer.autoFixDatabaseAsync();
             log.info("Đăng nhập thành công: {} [{}]", user.getUsername(), user.getRole());
             return user;
         }

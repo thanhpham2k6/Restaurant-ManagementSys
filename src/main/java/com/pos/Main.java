@@ -32,6 +32,7 @@ public class Main {
         }
 
         SwingUtilities.invokeLater(() -> {
+            com.pos.utils.DatabaseEncodingFixer.autoFixDatabaseAsync();
             LoginForm loginForm = new LoginForm();
             loginForm.setVisible(true);
         });

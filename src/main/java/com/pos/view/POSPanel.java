@@ -6,7 +6,10 @@ import com.pos.model.*;
 import com.pos.model.MenuItem;
 import com.pos.utils.CurrencyFormat;
 import com.pos.utils.DishImageManager;
+import com.pos.utils.TableUtils;
 import com.pos.utils.WrapLayout;
+
+import java.time.LocalDate;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -77,13 +80,11 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
     // Right - Order Header & Type
     private JComboBox<OrderType> cbOrderType;
+    private JPanel contextRow;
     private JComboBox<DiningTable> cbDiningTable;
+    private boolean isUpdatingTableCombo = false;
     private JButton btnOpenOrSwitchTable;
     private JButton btnViewFloorPlan;
-    private JPanel deliveryInfoPanel;
-    private JTextField txtDeliveryAddress;
-    private JTextField txtDeliveryPhone;
-    private JTextField txtDeliveryFee;
     private JLabel lblOrderInfo;
 
     // Right - Invoice Table & Controls
@@ -96,11 +97,17 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private JLabel lblCustomerInfo;
     private JButton btnApplyCustomer;
     private JButton btnUsePoints;
+    private JComboBox<String> cbVoucherSelector;
+    private List<Voucher> activeVouchers = new ArrayList<>();
+    private boolean isUpdatingVoucherCombo = false;
     private JTextField txtVoucherCode;
     private JButton btnApplyVoucher;
+    private JButton btnCancelVoucher;
+    private JLabel lblVoucherAppliedInfo;
+    private Runnable onTableStatusChanged;
 
     // Right - Totals & Actions
-    private JLabel lblSubtotal, lblDiscount, lblDeliveryFeeDisplay, lblTotal;
+    private JLabel lblSubtotal, lblDiscount, lblTotal;
     private JComboBox<DiscountStrategy> cbDiscount;
     private JComboBox<String> cbPayment;
     private JButton btnPay, btnCancel, btnSendKitchen;
@@ -118,6 +125,11 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         setLayout(new BorderLayout());
         initUI();
         loadTablesAsync();
+        loadActiveVouchers();
+    }
+
+    public void setOnTableStatusChanged(Runnable onTableStatusChanged) {
+        this.onTableStatusChanged = onTableStatusChanged;
     }
 
     public void setOnNavigateTabRequested(Consumer<String> onNavigateTabRequested) {
@@ -226,7 +238,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         menuTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         menuTable.setRowHeight(32);
         menuTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        menuTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(menuTable);
         menuTable.getColumnModel().getColumn(0).setMaxWidth(50);
         menuTable.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(JTable t, Object val, boolean sel, boolean foc, int r, int c) {
@@ -384,12 +396,12 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         JPanel typeRow = new JPanel(new BorderLayout(6, 0));
         typeRow.setOpaque(false);
 
-        cbOrderType = new JComboBox<>(new OrderType[]{OrderType.DINE_IN, OrderType.TAKEAWAY, OrderType.DELIVERY});
+        cbOrderType = new JComboBox<>(new OrderType[]{OrderType.DINE_IN, OrderType.TAKEAWAY});
         cbOrderType.setFont(new Font("Segoe UI", Font.BOLD, 13));
         cbOrderType.setPreferredSize(new Dimension(170, 32));
         cbOrderType.addActionListener(e -> onOrderTypeChanged());
 
-        btnViewFloorPlan = new JButton("🗺️ Sơ đồ bàn");
+        btnViewFloorPlan = new JButton("Sơ đồ bàn");
         btnViewFloorPlan.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnViewFloorPlan.setBackground(new Color(241, 245, 249));
         btnViewFloorPlan.setForeground(new Color(51, 65, 85));
@@ -405,13 +417,36 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         typeRow.add(cbOrderType, BorderLayout.CENTER);
         typeRow.add(btnViewFloorPlan, BorderLayout.EAST);
 
-        // Row 2: Table Selector / Delivery info
-        JPanel contextRow = new JPanel(new BorderLayout(6, 0));
+        // Row 2: Table Selector
+        contextRow = new JPanel(new BorderLayout(6, 0));
         contextRow.setOpaque(false);
 
         cbDiningTable = new JComboBox<>();
         cbDiningTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         cbDiningTable.setPreferredSize(new Dimension(210, 32));
+        cbDiningTable.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof DiningTable dt) {
+                    String stText = switch (dt.getStatus()) {
+                        case AVAILABLE, EMPTY -> "[Trống]";
+                        case OCCUPIED  -> "[Có khách]";
+                        case RESERVED  -> "[Đặt trước]";
+                        default -> "[Trống]";
+                    };
+                    setText(dt.getName() + " (" + dt.getCapacity() + " chỗ) — " + stText);
+                }
+                return this;
+            }
+        });
+        cbDiningTable.addActionListener(e -> {
+            if (isUpdatingTableCombo) return;
+            DiningTable dt = (DiningTable) cbDiningTable.getSelectedItem();
+            if (dt != null && currentOrderType == OrderType.DINE_IN) {
+                switchTableOrder(dt);
+            }
+        });
 
         btnOpenOrSwitchTable = new JButton("Bắt đầu đơn");
         btnOpenOrSwitchTable.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -425,37 +460,22 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         contextRow.add(cbDiningTable, BorderLayout.CENTER);
         contextRow.add(btnOpenOrSwitchTable, BorderLayout.EAST);
 
-        // Delivery info container
-        deliveryInfoPanel = new JPanel(new GridLayout(3, 2, 4, 4));
-        deliveryInfoPanel.setBorder(new CompoundBorder(
-            new LineBorder(new Color(226, 232, 240), 1, true),
-            new EmptyBorder(6, 6, 6, 6)
-        ));
-        deliveryInfoPanel.setOpaque(false);
-        deliveryInfoPanel.setVisible(false);
-
-        txtDeliveryPhone = new JTextField();
-        txtDeliveryAddress = new JTextField();
-        txtDeliveryFee = new JTextField("20000");
-
-        deliveryInfoPanel.add(new JLabel("SĐT nhận:")); deliveryInfoPanel.add(txtDeliveryPhone);
-        deliveryInfoPanel.add(new JLabel("Địa chỉ giao:")); deliveryInfoPanel.add(txtDeliveryAddress);
-        deliveryInfoPanel.add(new JLabel("Phí ship (đ):")); deliveryInfoPanel.add(txtDeliveryFee);
-
         // Info Banner
         lblOrderInfo = new JLabel("Chưa chọn bàn / đơn hàng", SwingConstants.LEFT);
         lblOrderInfo.setFont(new Font("Segoe UI", Font.BOLD, 13));
         lblOrderInfo.setForeground(new Color(15, 118, 110));
         lblOrderInfo.setBorder(new EmptyBorder(4, 2, 4, 2));
 
-        JPanel headerStack = new JPanel(new GridLayout(3, 1, 4, 4));
+        JPanel headerStack = new JPanel();
+        headerStack.setLayout(new BoxLayout(headerStack, BoxLayout.Y_AXIS));
         headerStack.setOpaque(false);
         headerStack.add(typeRow);
+        headerStack.add(Box.createVerticalStrut(4));
         headerStack.add(contextRow);
+        headerStack.add(Box.createVerticalStrut(4));
         headerStack.add(lblOrderInfo);
 
-        topOrderBox.add(headerStack, BorderLayout.NORTH);
-        topOrderBox.add(deliveryInfoPanel, BorderLayout.SOUTH);
+        topOrderBox.add(headerStack, BorderLayout.CENTER);
         panel.add(topOrderBox, BorderLayout.NORTH);
 
         // Invoice Items Table
@@ -468,10 +488,10 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         invoiceTable.setRowHeight(30);
         invoiceTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         invoiceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        invoiceTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(invoiceTable);
 
-        invoiceTable.getColumnModel().getColumn(1).setMaxWidth(45);
-        invoiceTable.getColumnModel().getColumn(4).setMaxWidth(70);
+        invoiceTable.getColumnModel().getColumn(1).setPreferredWidth(45);
+        invoiceTable.getColumnModel().getColumn(4).setPreferredWidth(95);
 
         DefaultTableCellRenderer right = new DefaultTableCellRenderer();
         right.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -481,7 +501,34 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);
         invoiceTable.getColumnModel().getColumn(1).setCellRenderer(center);
-        invoiceTable.getColumnModel().getColumn(4).setCellRenderer(center);
+
+        invoiceTable.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                setHorizontalAlignment(SwingConstants.CENTER);
+                String val = value != null ? value.toString() : "";
+                if (!isSelected) {
+                    if ("Chưa gửi bếp".equals(val)) {
+                        c.setForeground(new Color(220, 38, 38)); // Đỏ cảnh báo
+                        c.setFont(c.getFont().deriveFont(Font.BOLD));
+                    } else if ("Đã xong".equals(val)) {
+                        c.setForeground(new Color(16, 185, 129)); // Xanh lá
+                        c.setFont(c.getFont().deriveFont(Font.BOLD));
+                    } else if ("Đang nấu".equals(val)) {
+                        c.setForeground(new Color(234, 88, 12)); // Cam
+                        c.setFont(c.getFont().deriveFont(Font.PLAIN));
+                    } else if ("Chờ nấu".equals(val)) {
+                        c.setForeground(new Color(2, 132, 199)); // Xanh dương
+                        c.setFont(c.getFont().deriveFont(Font.PLAIN));
+                    } else {
+                        c.setForeground(new Color(100, 116, 139));
+                        c.setFont(c.getFont().deriveFont(Font.PLAIN));
+                    }
+                }
+                return c;
+            }
+        });
 
         JScrollPane invoiceScroll = new JScrollPane(invoiceTable);
         invoiceScroll.setBorder(new LineBorder(new Color(226, 232, 240), 1, true));
@@ -551,23 +598,51 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         lblCustomerInfo.setForeground(new Color(100, 116, 139));
         bottom.add(lblCustomerInfo);
 
-        // 2. Voucher row
-        JPanel voucherRow = new JPanel(new BorderLayout(4, 0));
-        voucherRow.setOpaque(false);
-        voucherRow.setBorder(new EmptyBorder(4, 0, 4, 0));
+        // 2. Voucher row (Kết hợp cả Box chọn mã ưu đãi có sẵn & Nhập mã tay)
+        JPanel voucherContainer = new JPanel(new BorderLayout(0, 4));
+        voucherContainer.setOpaque(false);
+        voucherContainer.setBorder(new EmptyBorder(4, 0, 4, 0));
+
+        cbVoucherSelector = new JComboBox<>();
+        cbVoucherSelector.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        cbVoucherSelector.addActionListener(e -> onVoucherSelectedFromDropdown());
+
+        JPanel voucherInputRow = new JPanel(new BorderLayout(4, 0));
+        voucherInputRow.setOpaque(false);
 
         txtVoucherCode = new JTextField();
-        txtVoucherCode.putClientProperty("JTextField.placeholderText", "Nhập mã Voucher...");
+        txtVoucherCode.putClientProperty("JTextField.placeholderText", "Hoặc tự gõ mã Voucher...");
         btnApplyVoucher = new JButton("Áp dụng mã");
+        btnApplyVoucher.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnApplyVoucher.addActionListener(e -> applyVoucherCode());
         txtVoucherCode.addActionListener(e -> applyVoucherCode());
 
-        voucherRow.add(txtVoucherCode, BorderLayout.CENTER);
-        voucherRow.add(btnApplyVoucher, BorderLayout.EAST);
-        bottom.add(voucherRow);
+        btnCancelVoucher = new JButton("Hủy mã");
+        btnCancelVoucher.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnCancelVoucher.setForeground(new Color(225, 29, 72));
+        btnCancelVoucher.addActionListener(e -> removeVoucher());
+        btnCancelVoucher.setVisible(false);
+
+        JPanel btnBox = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        btnBox.setOpaque(false);
+        btnBox.add(btnApplyVoucher);
+        btnBox.add(btnCancelVoucher);
+
+        voucherInputRow.add(txtVoucherCode, BorderLayout.CENTER);
+        voucherInputRow.add(btnBox, BorderLayout.EAST);
+
+        lblVoucherAppliedInfo = new JLabel();
+        lblVoucherAppliedInfo.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        lblVoucherAppliedInfo.setForeground(new Color(16, 185, 129));
+        lblVoucherAppliedInfo.setVisible(false);
+
+        voucherContainer.add(cbVoucherSelector, BorderLayout.NORTH);
+        voucherContainer.add(voucherInputRow, BorderLayout.CENTER);
+        voucherContainer.add(lblVoucherAppliedInfo, BorderLayout.SOUTH);
+        bottom.add(voucherContainer);
 
         // 3. Totals Grid
-        JPanel totalsGrid = new JPanel(new GridLayout(3, 2, 4, 2));
+        JPanel totalsGrid = new JPanel(new GridLayout(2, 2, 4, 4));
         totalsGrid.setOpaque(false);
         totalsGrid.setBorder(new CompoundBorder(
             new LineBorder(new Color(241, 245, 249), 1, true),
@@ -576,7 +651,6 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
         lblSubtotal = new JLabel("Tạm tính: 0 đ");
         lblDiscount = new JLabel("Giảm giá: 0 đ");
-        lblDeliveryFeeDisplay = new JLabel("Phí ship: 0 đ");
         lblTotal = new JLabel("TỔNG: 0 đ");
         lblTotal.setFont(new Font("Segoe UI", Font.BOLD, 17));
         lblTotal.setForeground(new Color(225, 29, 72));
@@ -586,8 +660,6 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
         totalsGrid.add(lblSubtotal);
         totalsGrid.add(lblDiscount);
-        totalsGrid.add(lblDeliveryFeeDisplay);
-        totalsGrid.add(new JLabel("Phương thức:"));
         totalsGrid.add(lblTotal);
         totalsGrid.add(cbPayment);
         bottom.add(totalsGrid);
@@ -632,14 +704,29 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     // =========================================================================
     private void onOrderTypeChanged() {
         currentOrderType = (OrderType) cbOrderType.getSelectedItem();
-        boolean isDelivery = (currentOrderType == OrderType.DELIVERY);
-        deliveryInfoPanel.setVisible(isDelivery);
-
-        if (currentOrder != null) {
-            currentOrder.setOrderType(currentOrderType);
-            updateInvoiceHeader();
-            updateTotal();
+        boolean isDineIn = (currentOrderType == OrderType.DINE_IN);
+        if (contextRow != null) {
+            contextRow.setVisible(isDineIn);
         }
+        if (btnViewFloorPlan != null) {
+            btnViewFloorPlan.setVisible(isDineIn);
+        }
+
+        if (!isDineIn) {
+            selectedTable = null;
+            List<Order> takeaways = orderDAO.findActiveTakeawayOrders();
+            currentOrder = takeaways.isEmpty() ? null : takeaways.get(0);
+        } else {
+            DiningTable dt = (DiningTable) cbDiningTable.getSelectedItem();
+            if (dt != null) {
+                switchTableOrder(dt);
+            }
+        }
+
+        updateInvoiceHeader();
+        loadInvoice();
+        revalidate();
+        repaint();
     }
 
     public void loadTablesAsync() {
@@ -649,34 +736,105 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             }
             @Override protected void done() {
                 try {
+                    DiningTable prev = (DiningTable) cbDiningTable.getSelectedItem();
+                    int prevId = prev != null ? prev.getId() : (selectedTable != null ? selectedTable.getId() : -1);
                     cachedTables = get();
+                    isUpdatingTableCombo = true;
                     cbDiningTable.removeAllItems();
-                    for (DiningTable t : cachedTables) {
+                    int selectIdx = -1;
+                    for (int i = 0; i < cachedTables.size(); i++) {
+                        DiningTable t = cachedTables.get(i);
                         cbDiningTable.addItem(t);
+                        if (t.getId() == prevId) {
+                            selectIdx = i;
+                        }
+                    }
+                    if (selectIdx >= 0) {
+                        cbDiningTable.setSelectedIndex(selectIdx);
+                    }
+                    isUpdatingTableCombo = false;
+
+                    DiningTable currentSelected = (DiningTable) cbDiningTable.getSelectedItem();
+                    if (currentSelected != null && currentOrderType == OrderType.DINE_IN) {
+                        switchTableOrder(currentSelected);
                     }
                 } catch (Exception ignored) {}
             }
         }.execute();
     }
 
+    public void switchTableOrder(DiningTable dt) {
+        if (dt == null) return;
+        DiningTable fresh = tableDAO.findById(dt.getId());
+        if (fresh != null) dt = fresh;
+        this.selectedTable = dt;
+
+        // Tự động hiển thị đơn hàng tương ứng của bàn này
+        this.currentOrder = orderDAO.findOpenByTable(dt.getId());
+
+        resetDiscounts();
+        updateInvoiceHeader();
+        loadInvoice();
+        updateTableActionButtonText(dt);
+    }
+
+    private void updateTableActionButtonText(DiningTable dt) {
+        if (dt == null || btnOpenOrSwitchTable == null) return;
+        if (currentOrder != null || dt.getStatus() == TableStatus.OCCUPIED) {
+            btnOpenOrSwitchTable.setText("Xem đơn bàn");
+            btnOpenOrSwitchTable.setBackground(new Color(239, 68, 68));
+        } else if (dt.getStatus() == TableStatus.RESERVED) {
+            btnOpenOrSwitchTable.setText("Nhận bàn đặt");
+            btnOpenOrSwitchTable.setBackground(new Color(245, 158, 11));
+        } else {
+            btnOpenOrSwitchTable.setText("Mở bàn mới");
+            btnOpenOrSwitchTable.setBackground(new Color(16, 185, 129));
+        }
+    }
+
     public void selectDiningTable(DiningTable table) {
+        // Query fresh status from DB to ensure complete sync
+        DiningTable fresh = tableDAO.findById(table.getId());
+        if (fresh != null) table = fresh;
+
         this.selectedTable = table;
         this.currentOrderType = OrderType.DINE_IN;
         cbOrderType.setSelectedItem(OrderType.DINE_IN);
+        if (contextRow != null) contextRow.setVisible(true);
+        if (btnViewFloorPlan != null) btnViewFloorPlan.setVisible(true);
 
+        isUpdatingTableCombo = true;
         for (int i = 0; i < cbDiningTable.getItemCount(); i++) {
             if (cbDiningTable.getItemAt(i).getId() == table.getId()) {
                 cbDiningTable.setSelectedIndex(i);
                 break;
             }
         }
+        isUpdatingTableCombo = false;
 
         if (table.getStatus() == TableStatus.OCCUPIED) {
             currentOrder = orderDAO.findOpenByTable(table.getId());
+        } else if (table.getStatus() == TableStatus.RESERVED) {
+            int opt = JOptionPane.showConfirmDialog(this,
+                "Bàn '" + table.getName() + "' hiện đang có lịch ĐẶT TRƯỚC.\nBạn có muốn mở bàn để nhận khách vào ngồi ngay không?",
+                "Bàn đã đặt trước", JOptionPane.YES_NO_OPTION);
+            if (opt == JOptionPane.YES_OPTION) {
+                try {
+                    currentOrder = tableController.openTable(table.getId(), currentUser);
+                    table.setStatus(TableStatus.OCCUPIED);
+                    if (onTableStatusChanged != null) onTableStatusChanged.run();
+                } catch (Exception ex) {
+                    currentOrder = orderDAO.findOpenByTable(table.getId());
+                }
+            } else {
+                switchTableOrder(table);
+                return;
+            }
         } else {
             try {
                 currentOrder = tableController.openTable(table.getId(), currentUser);
                 table.setStatus(TableStatus.OCCUPIED);
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
             } catch (Exception ex) {
                 currentOrder = orderDAO.findOpenByTable(table.getId());
             }
@@ -685,6 +843,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         resetDiscounts();
         updateInvoiceHeader();
         loadInvoice();
+        updateTableActionButtonText(table);
     }
 
     private void onOpenOrSwitchTableClicked() {
@@ -695,11 +854,14 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
                 return;
             }
             selectDiningTable(t);
+            if (currentOrder != null && currentOrder.getDetails() != null && !currentOrder.getDetails().isEmpty()) {
+                showOrderDetailPopup(t, currentOrder);
+            }
         } else {
-            // Takeaway or Delivery
-            String note = JOptionPane.showInputDialog(this, "Ghi chú đơn " + currentOrderType.getDisplayName() + ":", "");
+            // Takeaway
+            String note = JOptionPane.showInputDialog(this, "Ghi chú đơn Mang về:", "");
             Shift curShift = shiftController.getCurrentShift();
-            currentOrder = orderController.createOrder(null, currentUser, curShift, currentOrderType, currentCustomer, "", "", "", note != null ? note : "");
+            currentOrder = orderController.createOrder(null, currentUser, curShift, OrderType.TAKEAWAY, currentCustomer, "", "", "", note != null ? note : "");
             selectedTable = null;
             resetDiscounts();
             updateInvoiceHeader();
@@ -707,19 +869,69 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         }
     }
 
+    private void showOrderDetailPopup(DiningTable t, Order order) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=========================================\n");
+        sb.append("       CHI TIẾT ĐƠN HÀNG - ").append(t.getName()).append("\n");
+        sb.append("=========================================\n");
+        sb.append("Mã đơn hàng  : #").append(order.getId()).append("\n");
+        sb.append("Trạng thái   : ").append(order.getStatus()).append("\n");
+        sb.append("Loại đơn     : ").append(order.getOrderType().getDisplayName()).append("\n");
+        sb.append("-----------------------------------------\n");
+        sb.append(String.format("%-22s %4s %12s\n", "Tên món", "SL", "Tiến độ bếp"));
+        sb.append("-----------------------------------------\n");
+        for (OrderDetail d : order.getDetails()) {
+            String mName = d.getItem() != null ? d.getItem().getName() : "Món #" + d.getId();
+            if (mName.length() > 20) mName = mName.substring(0, 19) + "...";
+            String kStatus;
+            if (!d.isSentToKitchen()) {
+                kStatus = "Chưa gửi bếp";
+            } else {
+                kStatus = switch (d.getStatus() != null ? d.getStatus() : ItemStatus.PENDING) {
+                    case PENDING -> "Chờ nấu";
+                    case ACCEPTED -> "Đã nhận";
+                    case COOKING -> "Đang nấu";
+                    case DONE -> "Đã xong";
+                    case REJECTED -> "Từ chối";
+                };
+            }
+            sb.append(String.format("%-22s %4d %12s\n", mName, d.getQuantity(), kStatus));
+            if (d.getNote() != null && !d.getNote().trim().isEmpty()) {
+                sb.append("  ↳ Ghi chú: ").append(d.getNote().trim()).append("\n");
+            }
+        }
+        sb.append("-----------------------------------------\n");
+        sb.append("Tổng tiền tạm tính: ").append(CurrencyFormat.format(order.getTotalAmount())).append("\n");
+        sb.append("=========================================\n");
+
+        JTextArea area = new JTextArea(sb.toString());
+        area.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        area.setEditable(false);
+        JOptionPane.showMessageDialog(this, new JScrollPane(area), "Chi Tiết Đơn Hàng - " + t.getName(), JOptionPane.INFORMATION_MESSAGE);
+    }
+
     private void quickAddMenuItem(MenuItem item, int qty, String note) {
         if (currentOrder == null) {
             if (currentOrderType == OrderType.DINE_IN) {
-                DiningTable t = (DiningTable) cbDiningTable.getSelectedItem();
+                DiningTable t = selectedTable != null ? selectedTable : (DiningTable) cbDiningTable.getSelectedItem();
                 if (t != null) {
-                    selectDiningTable(t);
+                    try {
+                        currentOrder = tableController.openTable(t.getId(), currentUser);
+                        t.setStatus(TableStatus.OCCUPIED);
+                        selectedTable = t;
+                        if (onTableStatusChanged != null) onTableStatusChanged.run();
+                    } catch (Exception ex) {
+                        currentOrder = orderDAO.findOpenByTable(t.getId());
+                    }
                 } else {
-                    JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn ăn hoặc chọn loại đơn Mang về trước khi chọn món!", "Chưa chọn bàn", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn ăn trước khi chọn món!", "Chưa chọn bàn", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
             } else {
-                onOpenOrSwitchTableClicked();
+                Shift curShift = shiftController.getCurrentShift();
+                currentOrder = orderController.createOrder(null, currentUser, curShift, OrderType.TAKEAWAY, currentCustomer, "", "", "", note != null ? note : "");
             }
+            updateInvoiceHeader();
         }
 
         if (currentOrder == null) {
@@ -732,7 +944,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             OrderDetail existing = null;
             if (currentOrder.getDetails() != null) {
                 for (OrderDetail d : currentOrder.getDetails()) {
-                    if (d.getItem() != null && d.getItem().getId() == item.getId() && d.getStatus() == ItemStatus.PENDING) {
+                    if (d.getItem() != null && d.getItem().getId() == item.getId() && !d.isSentToKitchen() && d.getStatus() == ItemStatus.PENDING) {
                         existing = d;
                         break;
                     }
@@ -747,6 +959,9 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             }
 
             loadInvoice();
+            if (selectedTable != null) {
+                updateTableActionButtonText(selectedTable);
+            }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Lỗi thêm món vào đơn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
@@ -758,6 +973,10 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         int r = invoiceTable.convertRowIndexToModel(viewRow);
         if (r >= currentOrder.getDetails().size()) return;
         OrderDetail d = currentOrder.getDetails().get(r);
+        if (delta < 0 && (d.getStatus() == ItemStatus.COOKING || d.getStatus() == ItemStatus.DONE)) {
+            JOptionPane.showMessageDialog(this, "Không thể giảm số lượng món đang nấu hoặc đã hoàn thành!", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         int newQty = d.getQuantity() + delta;
         if (newQty <= 0) {
             removeSelectedItem();
@@ -773,6 +992,10 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         int r = invoiceTable.convertRowIndexToModel(viewRow);
         if (r >= currentOrder.getDetails().size()) return;
         OrderDetail d = currentOrder.getDetails().get(r);
+        if (d.getStatus() == ItemStatus.COOKING || d.getStatus() == ItemStatus.DONE) {
+            JOptionPane.showMessageDialog(this, "Không thể xóa món đang nấu hoặc đã hoàn thành từ bếp!", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         orderController.removeItemFromOrder(d.getId());
         loadInvoice();
     }
@@ -784,9 +1007,11 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         if (r >= currentOrder.getDetails().size()) return;
         OrderDetail d = currentOrder.getDetails().get(r);
         String itemName = d.getItem() != null ? d.getItem().getName() : "";
-        String note = JOptionPane.showInputDialog(this, "Nhập ghi chú cho món '" + itemName + "':", d.getNote() != null ? d.getNote() : "");
+        String note = JOptionPane.showInputDialog(this, "Nhập ghi chú chế biến cho món '" + itemName + "' (VD: không hành, ít cay, ít ngọt...):", d.getNote() != null ? d.getNote() : "");
         if (note != null) {
-            d.setNote(note.trim());
+            String clean = note.trim();
+            d.setNote(clean);
+            orderController.updateDetailNote(d.getId(), clean);
             loadInvoice();
         }
     }
@@ -806,12 +1031,27 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
         for (OrderDetail d : currentOrder.getDetails()) {
             String name = d.getItem() != null ? d.getItem().getName() : "Món #" + d.getId();
+            if (d.getNote() != null && !d.getNote().trim().isEmpty()) {
+                name += " [" + d.getNote().trim() + "]";
+            }
+            String kitchenStatus;
+            if (!d.isSentToKitchen()) {
+                kitchenStatus = "Chưa gửi bếp";
+            } else {
+                kitchenStatus = switch (d.getStatus() != null ? d.getStatus() : ItemStatus.PENDING) {
+                    case PENDING -> "Chờ nấu";
+                    case ACCEPTED -> "Đã nhận";
+                    case COOKING -> "Đang nấu";
+                    case DONE -> "Đã xong";
+                    case REJECTED -> "Từ chối";
+                };
+            }
             invoiceTableModel.addRow(new Object[]{
                 name,
                 d.getQuantity(),
                 CurrencyFormat.format(d.getUnitPrice()),
                 CurrencyFormat.format(d.getSubtotal()),
-                d.getStatus() != null ? d.getStatus().name() : "PENDING"
+                kitchenStatus
             });
         }
         updateTotal();
@@ -821,7 +1061,6 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         if (currentOrder == null) {
             lblSubtotal.setText("Tạm tính: 0 đ");
             lblDiscount.setText("Giảm giá: 0 đ");
-            lblDeliveryFeeDisplay.setText("Phí ship: 0 đ");
             lblTotal.setText("TỔNG: 0 đ");
             return;
         }
@@ -830,15 +1069,6 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             .map(OrderDetail::getSubtotal)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal delFee = BigDecimal.ZERO;
-        if (currentOrderType == OrderType.DELIVERY) {
-            try {
-                delFee = new BigDecimal(txtDeliveryFee.getText().trim());
-            } catch (Exception ignored) {
-                delFee = new BigDecimal("20000");
-            }
-        }
-
         BigDecimal discount = BigDecimal.ZERO;
         if (currentVoucher != null) {
             discount = currentVoucher.computeDiscount(sub);
@@ -846,21 +1076,28 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             discount = new BigDecimal(usedPoints * 100);
         }
 
-        BigDecimal total = sub.subtract(discount).max(BigDecimal.ZERO).add(delFee);
+        BigDecimal total = sub.subtract(discount).max(BigDecimal.ZERO);
 
         lblSubtotal.setText("Tạm tính: " + CurrencyFormat.format(sub));
         lblDiscount.setText("Giảm giá: " + CurrencyFormat.format(discount));
-        lblDeliveryFeeDisplay.setText("Phí ship: " + CurrencyFormat.format(delFee));
         lblTotal.setText("TỔNG: " + CurrencyFormat.format(total));
     }
 
     private void updateInvoiceHeader() {
         if (currentOrder != null) {
             String typeStr = currentOrder.getOrderType() != null ? currentOrder.getOrderType().getDisplayName() : "Tại bàn";
-            String loc = selectedTable != null ? selectedTable.getName() : "Mang về / Giao hàng";
+            String loc = (currentOrder.getOrderType() == OrderType.DINE_IN && selectedTable != null)
+                ? selectedTable.getName()
+                : "Mang về";
             lblOrderInfo.setText("Đơn #" + currentOrder.getId() + " • " + loc + " • " + typeStr);
         } else {
-            lblOrderInfo.setText("Chưa có đơn hàng đang mở");
+            if (currentOrderType == OrderType.DINE_IN && selectedTable != null) {
+                lblOrderInfo.setText(selectedTable.getName() + " • Trống (Chọn món để bắt đầu)");
+            } else if (currentOrderType == OrderType.TAKEAWAY) {
+                lblOrderInfo.setText("Đơn Mang về (Chọn món để bắt đầu)");
+            } else {
+                lblOrderInfo.setText("Chưa có đơn hàng đang mở");
+            }
         }
     }
 
@@ -870,6 +1107,13 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         usedPoints = 0;
         txtCustomerPhone.setText("");
         txtVoucherCode.setText("");
+        if (cbVoucherSelector != null && cbVoucherSelector.getItemCount() > 0) {
+            isUpdatingVoucherCombo = true;
+            cbVoucherSelector.setSelectedIndex(0);
+            isUpdatingVoucherCombo = false;
+        }
+        if (lblVoucherAppliedInfo != null) lblVoucherAppliedInfo.setVisible(false);
+        if (btnCancelVoucher != null) btnCancelVoucher.setVisible(false);
         lblCustomerInfo.setText("Khách vãng lai");
         btnUsePoints.setEnabled(false);
     }
@@ -916,6 +1160,113 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         }
     }
 
+    public void loadActiveVouchers() {
+        new SwingWorker<List<Voucher>, Void>() {
+            @Override protected List<Voucher> doInBackground() {
+                List<Voucher> all = voucherDAO.findAll();
+                LocalDate today = LocalDate.now();
+                List<Voucher> valid = new ArrayList<>();
+                for (Voucher v : all) {
+                    if (v.isActive()) {
+                        if (v.getEndDate() != null && v.getEndDate().isBefore(today)) continue;
+                        if (v.getUsageLimit() > 0 && v.getUsedCount() >= v.getUsageLimit()) continue;
+                        valid.add(v);
+                    }
+                }
+                return valid;
+            }
+            @Override protected void done() {
+                try {
+                    activeVouchers = get();
+                    isUpdatingVoucherCombo = true;
+                    cbVoucherSelector.removeAllItems();
+                    cbVoucherSelector.addItem("-- Chọn mã Voucher có sẵn --");
+                    for (Voucher v : activeVouchers) {
+                        String desc = v.getCode() + " • Giảm " + 
+                            (v.getDiscountType() == DiscountType.PERCENT ? v.getDiscountVal() + "%" : CurrencyFormat.format(v.getDiscountVal())) +
+                            " (đơn ≥ " + CurrencyFormat.format(v.getMinOrderAmount()) + ")";
+                        cbVoucherSelector.addItem(desc);
+                    }
+                    if (currentVoucher != null) {
+                        for (int i = 0; i < activeVouchers.size(); i++) {
+                            if (activeVouchers.get(i).getCode().equalsIgnoreCase(currentVoucher.getCode())) {
+                                cbVoucherSelector.setSelectedIndex(i + 1);
+                                break;
+                            }
+                        }
+                    }
+                    isUpdatingVoucherCombo = false;
+                } catch (Exception ignored) {}
+            }
+        }.execute();
+    }
+
+    private void onVoucherSelectedFromDropdown() {
+        if (isUpdatingVoucherCombo || cbVoucherSelector == null) return;
+        int idx = cbVoucherSelector.getSelectedIndex();
+        if (idx <= 0) {
+            removeVoucher();
+            return;
+        }
+        if (activeVouchers != null && idx - 1 < activeVouchers.size()) {
+            Voucher v = activeVouchers.get(idx - 1);
+            txtVoucherCode.setText(v.getCode());
+            applyVoucher(v);
+        }
+    }
+
+    private void applyVoucher(Voucher v) {
+        if (v == null || !v.isActive()) {
+            JOptionPane.showMessageDialog(this, "Mã Voucher không tồn tại hoặc đã hết hạn!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        BigDecimal sub = currentOrder != null ? currentOrder.getDetails().stream().map(OrderDetail::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add) : BigDecimal.ZERO;
+        if (!v.isValid(sub)) {
+            JOptionPane.showMessageDialog(this,
+                "Đơn hàng hiện tại (" + CurrencyFormat.format(sub) + ") chưa đạt giá trị tối thiểu " +
+                CurrencyFormat.format(v.getMinOrderAmount()) + " để dùng Voucher [" + v.getCode() + "]!",
+                "Chưa đủ điều kiện", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        this.currentVoucher = v;
+        updateTotal();
+
+        BigDecimal disc = v.computeDiscount(sub);
+        if (lblVoucherAppliedInfo != null) {
+            lblVoucherAppliedInfo.setText("✓ Đã áp dụng: " + v.getCode() + " (-" + CurrencyFormat.format(disc) + ")");
+            lblVoucherAppliedInfo.setVisible(true);
+        }
+        if (btnCancelVoucher != null) btnCancelVoucher.setVisible(true);
+
+        // Sync dropdown selection if not matched
+        if (activeVouchers != null) {
+            for (int i = 0; i < activeVouchers.size(); i++) {
+                if (activeVouchers.get(i).getCode().equalsIgnoreCase(v.getCode())) {
+                    isUpdatingVoucherCombo = true;
+                    cbVoucherSelector.setSelectedIndex(i + 1);
+                    isUpdatingVoucherCombo = false;
+                    break;
+                }
+            }
+        }
+        JOptionPane.showMessageDialog(this, "Đã áp dụng Voucher [" + v.getCode() + "] thành công!");
+    }
+
+    private void removeVoucher() {
+        this.currentVoucher = null;
+        txtVoucherCode.setText("");
+        if (lblVoucherAppliedInfo != null) lblVoucherAppliedInfo.setVisible(false);
+        if (btnCancelVoucher != null) btnCancelVoucher.setVisible(false);
+        if (cbVoucherSelector != null && cbVoucherSelector.getItemCount() > 0) {
+            isUpdatingVoucherCombo = true;
+            cbVoucherSelector.setSelectedIndex(0);
+            isUpdatingVoucherCombo = false;
+        }
+        updateTotal();
+    }
+
     private void applyVoucherCode() {
         String code = txtVoucherCode.getText().trim();
         if (code.isEmpty()) return;
@@ -924,16 +1275,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             JOptionPane.showMessageDialog(this, "Mã Voucher '" + code + "' không tồn tại hoặc đã hết hạn!", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
-        BigDecimal sub = currentOrder != null ? currentOrder.getDetails().stream().map(OrderDetail::getSubtotal).reduce(BigDecimal.ZERO, BigDecimal::add) : BigDecimal.ZERO;
-        if (!v.isValid(sub)) {
-            JOptionPane.showMessageDialog(this, "Đơn hàng chưa đạt giá trị tối thiểu " + CurrencyFormat.format(v.getMinOrderAmount()) + " để dùng Voucher!", "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        this.currentVoucher = v;
-        updateTotal();
-        JOptionPane.showMessageDialog(this, "Đã áp dụng Voucher [" + v.getCode() + "] thành công!");
+        applyVoucher(v);
     }
 
     private void sendToKitchen() {
@@ -941,9 +1283,16 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             JOptionPane.showMessageDialog(this, "Chưa có món nào để gửi bếp!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        long unsentCount = currentOrder.getDetails().stream()
+            .filter(d -> !d.isSentToKitchen() && d.getStatus() != ItemStatus.REJECTED)
+            .count();
+        if (unsentCount == 0) {
+            JOptionPane.showMessageDialog(this, "Tất cả các món trong đơn đã được gửi sang Bếp từ trước!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         orderController.sendToKitchen(currentOrder.getId());
         loadInvoice();
-        JOptionPane.showMessageDialog(this, "Đã gửi thông báo chế biến tới Màn hình Bếp!");
+        JOptionPane.showMessageDialog(this, "Đã gửi thành công " + unsentCount + " món sang Màn hình Bếp!", "Gửi Bếp thành công", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void cancelOrder() {
@@ -954,6 +1303,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             if (selectedTable != null) {
                 tableController.clearTable(selectedTable.getId());
                 selectedTable = null;
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
             }
             currentOrder = null;
             resetDiscounts();
@@ -969,6 +1319,45 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             JOptionPane.showMessageDialog(this, "Không có đơn hàng hoặc chưa có món ăn để thanh toán!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
+
+        // 1. Kiểm tra xem có món nào chưa gửi sang bếp không -> BẮT BUỘC CHẶN THANH TOÁN
+        int unsentCount = 0;
+        try (java.sql.Connection conn = com.pos.utils.DatabaseConnection.getInstance().getConnection();
+             java.sql.PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM order_details WHERE order_id = ? AND (sent_to_kitchen = 0 OR sent_to_kitchen IS NULL) AND status != 'REJECTED'")) {
+            ps.setInt(1, currentOrder.getId());
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) unsentCount = rs.getInt(1);
+            }
+        } catch (Exception ignored) {}
+
+        if (unsentCount > 0) {
+            int choice = JOptionPane.showConfirmDialog(this,
+                "Đơn hàng đang có " + unsentCount + " món CHƯA GỬI sang Bếp chế biến!\n" +
+                "Bạn có muốn gửi ngay sang Bếp bây giờ không?",
+                "Chưa gửi món sang Bếp", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (choice == JOptionPane.YES_OPTION) {
+                sendToKitchen();
+            }
+            return; // Chặn thanh toán hoàn toàn!
+        }
+
+        // 2. Kiểm tra xem bếp đã hoàn thành tất cả các món chưa
+        try (java.sql.Connection conn = com.pos.utils.DatabaseConnection.getInstance().getConnection();
+             java.sql.PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM order_details WHERE order_id = ? AND sent_to_kitchen = 1 AND status NOT IN ('DONE', 'REJECTED')")) {
+            ps.setInt(1, currentOrder.getId());
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    int pendingCount = rs.getInt(1);
+                    int confirm = JOptionPane.showConfirmDialog(this,
+                        "Còn " + pendingCount + " món chưa được bếp báo hoàn thành!\n" +
+                        "Bạn có chắc muốn thanh toán ngay không?",
+                        "Cảnh báo - Bếp chưa xong", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                    if (confirm != JOptionPane.YES_OPTION) return;
+                }
+            }
+        } catch (Exception ignored) {}
 
         String payType = ((String) cbPayment.getSelectedItem()).startsWith("CASH") ? "CASH" : "TRANSFER";
 
@@ -989,6 +1378,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
             if (selectedTable != null) {
                 tableController.clearTable(selectedTable.getId());
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
             }
 
             JOptionPane.showMessageDialog(this,
@@ -1008,6 +1398,11 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         }
     }
 
-    @Override public void onOrderChanged(OrderEvent event) { SwingUtilities.invokeLater(this::loadInvoice); }
+    @Override public void onOrderChanged(OrderEvent event) {
+        SwingUtilities.invokeLater(() -> {
+            loadInvoice();
+            loadTablesAsync();
+        });
+    }
     @Override public void onStockChanged(int menuItemId) { SwingUtilities.invokeLater(this::loadMenuItems); }
 }

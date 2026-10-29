@@ -23,7 +23,7 @@ public class StockMovementDAO {
         try { sm.setSupplierName(rs.getString("supplier_name")); } catch (SQLException ignored) {}
         sm.setUserId(rs.getInt("user_id"));
         try { sm.setUserFullName(rs.getString("user_full_name")); } catch (SQLException ignored) {}
-        sm.setType(MovementType.valueOf(rs.getString("type")));
+        sm.setType(MovementType.fromString(rs.getString("type")));
         sm.setQuantity(rs.getBigDecimal("quantity"));
         sm.setUnitPrice(rs.getBigDecimal("unit_price"));
         sm.setNote(rs.getString("note"));

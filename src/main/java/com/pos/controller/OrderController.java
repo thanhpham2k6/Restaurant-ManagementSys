@@ -133,6 +133,10 @@ public class OrderController {
         orderDAO.updateDetailQuantity(detailId, quantity);
     }
 
+    public void updateDetailNote(int detailId, String note) {
+        orderDAO.updateDetailNote(detailId, note);
+    }
+
     public void removeItemFromOrder(int detailId) {
         orderDAO.deleteDetail(detailId);
     }
@@ -205,6 +209,11 @@ public class OrderController {
         long validCount = details.stream().filter(d -> d.getStatus() != ItemStatus.REJECTED).count();
         if (validCount == 0) {
             throw new RuntimeException("Đơn hàng chưa có món nào để thanh toán!");
+        }
+
+        long unsentCount = details.stream().filter(d -> !d.isSentToKitchen() && d.getStatus() != ItemStatus.REJECTED).count();
+        if (unsentCount > 0) {
+            throw new RuntimeException("Không thể thanh toán: Đơn hàng đang có " + unsentCount + " món chưa gửi sang Bếp!");
         }
 
         order.setDetails(details);

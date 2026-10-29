@@ -5,7 +5,7 @@ import com.pos.controller.TableController;
 import com.pos.model.*;
 import com.pos.utils.CurrencyFormat;
 import com.pos.utils.DateUtils;
-import com.pos.utils.QRCodeService;
+import com.pos.utils.TableUtils;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -28,11 +28,12 @@ import java.util.function.Consumer;
  * Module Chuyên biệt: Sơ đồ bàn (Floor Plan) & Quản lý Đặt bàn trước (Reservations).
  * Hỗ trợ tiếp nhận đặt bàn đa kênh: Hotline, Zalo, Facebook/MXH, Trực tiếp tại quầy, Website.
  */
-public class TableReservationPanel extends JPanel {
+public class TableReservationPanel extends JPanel implements com.pos.controller.OrderObserver {
     private final User currentUser;
     private final TableController tableController;
     private final ReservationController reservationController;
     private Consumer<DiningTable> onTableSelectedForPOS;
+    private Runnable onTableStatusChanged;
 
     private JTabbedPane tabbedPane;
 
@@ -40,7 +41,7 @@ public class TableReservationPanel extends JPanel {
     private JPanel cardsGridPanel;
     private List<DiningTable> tableList = new ArrayList<>();
     private String currentTableFilter = "ALL";
-    private JLabel lblStatTotal, lblStatAvail, lblStatOccupied, lblStatReserved, lblStatCleaning;
+    private JLabel lblStatTotal, lblStatAvail, lblStatOccupied, lblStatReserved;
 
     // Tab 2: Đặt bàn
     private JTable resTable;
@@ -63,6 +64,15 @@ public class TableReservationPanel extends JPanel {
 
     public void setOnTableSelectedForPOS(Consumer<DiningTable> onTableSelectedForPOS) {
         this.onTableSelectedForPOS = onTableSelectedForPOS;
+    }
+
+    public void setOnTableStatusChanged(Runnable onTableStatusChanged) {
+        this.onTableStatusChanged = onTableStatusChanged;
+    }
+
+    @Override
+    public void onOrderChanged(OrderEvent event) {
+        SwingUtilities.invokeLater(this::loadAllDataAsync);
     }
 
     private void initComponents() {
@@ -105,13 +115,11 @@ public class TableReservationPanel extends JPanel {
         lblStatAvail = createBadge("Trống: 0", new Color(34, 197, 94), Color.WHITE);
         lblStatOccupied = createBadge("Có khách: 0", new Color(239, 68, 68), Color.WHITE);
         lblStatReserved = createBadge("Đặt trước: 0", new Color(245, 158, 11), Color.WHITE);
-        lblStatCleaning = createBadge("Dọn dẹp: 0", new Color(148, 163, 184), Color.WHITE);
 
         statsPanel.add(lblStatTotal);
         statsPanel.add(lblStatAvail);
         statsPanel.add(lblStatOccupied);
         statsPanel.add(lblStatReserved);
-        statsPanel.add(lblStatCleaning);
 
         topPanel.add(titlePanel, BorderLayout.WEST);
         topPanel.add(statsPanel, BorderLayout.EAST);
@@ -128,32 +136,36 @@ public class TableReservationPanel extends JPanel {
         JToggleButton tbAvail = createFilterToggle("Bàn trống", false);
         JToggleButton tbOccupied = createFilterToggle("Đang phục vụ", false);
         JToggleButton tbReserved = createFilterToggle("Đã đặt trước", false);
-        JToggleButton tbCleaning = createFilterToggle("Đang dọn dẹp", false);
 
-        bg.add(tbAll); bg.add(tbAvail); bg.add(tbOccupied); bg.add(tbReserved); bg.add(tbCleaning);
-        filterBtns.add(tbAll); filterBtns.add(tbAvail); filterBtns.add(tbOccupied); filterBtns.add(tbReserved); filterBtns.add(tbCleaning);
+        bg.add(tbAll); bg.add(tbAvail); bg.add(tbOccupied); bg.add(tbReserved);
+        filterBtns.add(tbAll); filterBtns.add(tbAvail); filterBtns.add(tbOccupied); filterBtns.add(tbReserved);
 
         tbAll.addActionListener(e -> { currentTableFilter = "ALL"; renderTableCards(); });
         tbAvail.addActionListener(e -> { currentTableFilter = "AVAILABLE"; renderTableCards(); });
         tbOccupied.addActionListener(e -> { currentTableFilter = "OCCUPIED"; renderTableCards(); });
         tbReserved.addActionListener(e -> { currentTableFilter = "RESERVED"; renderTableCards(); });
-        tbCleaning.addActionListener(e -> { currentTableFilter = "CLEANING"; renderTableCards(); });
 
         JPanel actionBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actionBtns.setOpaque(false);
 
         JButton btnAddTable = createStyledButton("+ Thêm bàn", new Color(16, 185, 129));
-        JButton btnMoveTable = createStyledButton("Chuyển bàn", new Color(59, 130, 246));
+        JButton btnEditTable = createStyledButton("Sửa bàn", new Color(59, 130, 246));
+        JButton btnDeleteTable = createStyledButton("Xóa bàn", new Color(239, 68, 68));
+        JButton btnMoveTable = createStyledButton("Chuyển bàn", new Color(99, 102, 241));
         JButton btnMergeTable = createStyledButton("Gộp bàn", new Color(139, 92, 246));
         JButton btnRefresh = createStyledButton("Làm mới", new Color(100, 116, 139));
 
         btnAddTable.addActionListener(e -> showAddTableDialog());
+        btnEditTable.addActionListener(e -> showEditTableDialog());
+        btnDeleteTable.addActionListener(e -> showDeleteTableDialog());
         btnMoveTable.addActionListener(e -> showMoveTableDialog());
         btnMergeTable.addActionListener(e -> showMergeTableDialog());
         btnRefresh.addActionListener(e -> loadTablesAsync());
 
         if (currentUser.getRole() == Role.MANAGER) {
             actionBtns.add(btnAddTable);
+            actionBtns.add(btnEditTable);
+            actionBtns.add(btnDeleteTable);
         }
         actionBtns.add(btnMoveTable);
         actionBtns.add(btnMergeTable);
@@ -187,21 +199,19 @@ public class TableReservationPanel extends JPanel {
         cardsGridPanel.removeAll();
 
         int total = tableList.size();
-        int avail = 0, occ = 0, res = 0, clean = 0;
+        int avail = 0, occ = 0, res = 0;
 
         for (DiningTable dt : tableList) {
             TableStatus st = dt.getStatus();
             if (st.isAvailable()) avail++;
             else if (st == TableStatus.OCCUPIED) occ++;
             else if (st == TableStatus.RESERVED) res++;
-            else if (st == TableStatus.CLEANING) clean++;
 
             // Filter check
             if (!currentTableFilter.equals("ALL")) {
                 if (currentTableFilter.equals("AVAILABLE") && !st.isAvailable()) continue;
                 if (currentTableFilter.equals("OCCUPIED") && st != TableStatus.OCCUPIED) continue;
                 if (currentTableFilter.equals("RESERVED") && st != TableStatus.RESERVED) continue;
-                if (currentTableFilter.equals("CLEANING") && st != TableStatus.CLEANING) continue;
             }
 
             cardsGridPanel.add(buildTableCard(dt));
@@ -211,7 +221,6 @@ public class TableReservationPanel extends JPanel {
         lblStatAvail.setText("Trống: " + avail);
         lblStatOccupied.setText("Có khách: " + occ);
         lblStatReserved.setText("Đặt trước: " + res);
-        lblStatCleaning.setText("Dọn dẹp: " + clean);
 
         cardsGridPanel.revalidate();
         cardsGridPanel.repaint();
@@ -228,22 +237,18 @@ public class TableReservationPanel extends JPanel {
         String statusText;
 
         TableStatus st = dt.getStatus();
-        if (st.isAvailable()) {
-            borderColor = new Color(187, 247, 208);
-            badgeBg = new Color(34, 197, 94);
-            statusText = "🟢 Trống - Sẵn sàng";
-        } else if (st == TableStatus.OCCUPIED) {
+        if (st == TableStatus.OCCUPIED) {
             borderColor = new Color(254, 202, 202);
             badgeBg = new Color(239, 68, 68);
-            statusText = "🔴 Đang phục vụ";
+            statusText = "● Đang phục vụ";
         } else if (st == TableStatus.RESERVED) {
             borderColor = new Color(254, 240, 138);
             badgeBg = new Color(245, 158, 11);
-            statusText = "🟡 Đã đặt trước";
+            statusText = "● Đã đặt trước";
         } else {
-            borderColor = new Color(226, 232, 240);
-            badgeBg = new Color(148, 163, 184);
-            statusText = "⚪ Đang dọn dẹp";
+            borderColor = new Color(187, 247, 208);
+            badgeBg = new Color(34, 197, 94);
+            statusText = "● Trống - Sẵn sàng";
         }
 
         card.setBorder(new CompoundBorder(
@@ -259,7 +264,7 @@ public class TableReservationPanel extends JPanel {
         lblName.setFont(new Font("Segoe UI", Font.BOLD, 17));
         lblName.setForeground(new Color(15, 23, 42));
 
-        JLabel lblCap = new JLabel("👤 " + dt.getCapacity() + " chỗ");
+        JLabel lblCap = new JLabel(dt.getCapacity() + " cho");
         lblCap.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         lblCap.setForeground(new Color(100, 116, 139));
 
@@ -277,20 +282,7 @@ public class TableReservationPanel extends JPanel {
         lblBadge.setForeground(badgeFg);
         lblBadge.setBorder(new EmptyBorder(6, 10, 6, 10));
 
-        // QR Button
-        JButton btnQR = new JButton("📱 Mã QR");
-        btnQR.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        btnQR.setFocusPainted(false);
-        btnQR.setBackground(new Color(241, 245, 249));
-        btnQR.setForeground(new Color(51, 65, 85));
-        btnQR.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnQR.addActionListener(e -> showQRCodeDialog(dt));
-
-        JPanel centerRow = new JPanel(new BorderLayout(6, 0));
-        centerRow.setOpaque(false);
-        centerRow.add(lblBadge, BorderLayout.CENTER);
-        centerRow.add(btnQR, BorderLayout.EAST);
-        cardCenter.add(centerRow, BorderLayout.CENTER);
+        cardCenter.add(lblBadge, BorderLayout.CENTER);
 
         // Actions: [Gọi món / POS] & [Đổi trạng thái]
         JPanel cardActions = new JPanel(new GridLayout(1, 2, 6, 0));
@@ -386,7 +378,7 @@ public class TableReservationPanel extends JPanel {
         filterBar.setBackground(Color.WHITE);
 
         filterBar.add(new JLabel("Lọc theo Kênh:"));
-        cbFilterChannel = new JComboBox<>(new String[]{"Tất cả kênh", "📞 Hotline", "💬 Zalo", "🌐 Facebook / MXH", "🏬 Trực tiếp", "💻 Website"});
+        cbFilterChannel = new JComboBox<>(new String[]{"Tất cả kênh", "Hotline", "Zalo", "Facebook / MXH", "Trực tiếp", "Website"});
         cbFilterChannel.addActionListener(e -> filterReservationsTable());
         filterBar.add(cbFilterChannel);
 
@@ -412,7 +404,7 @@ public class TableReservationPanel extends JPanel {
         resTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         resTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         resTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        resTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(resTable);
 
         // Alignment & Colors
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
@@ -489,7 +481,7 @@ public class TableReservationPanel extends JPanel {
         for (Reservation r : resList) {
             // Channel filter
             if (channelFilter != null && !channelFilter.equals("Tất cả kênh")) {
-                if (!r.getChannelDisplayName().contains(channelFilter.replace("📞 ", "").replace("💬 ", "").replace("🌐 ", "").replace("🏬 ", "").replace("💻 ", ""))) {
+                if (!r.getChannelDisplayName().toLowerCase().contains(channelFilter.toLowerCase())) {
                     continue;
                 }
             }
@@ -555,11 +547,11 @@ public class TableReservationPanel extends JPanel {
 
         // Channel Combo
         JComboBox<String> cbChannel = new JComboBox<>(new String[]{
-            "HOTLINE (📞 Điện thoại Tổng đài)",
-            "ZALO (💬 Tiếp nhận qua Zalo)",
-            "FACEBOOK (🌐 Facebook Fanpage / MXH)",
-            "DIRECT (🏬 Khách đến đặt trực tiếp)",
-            "WEBSITE (💻 Đặt chỗ qua Website)"
+            "HOTLINE (Điện thoại Tổng đài)",
+            "ZALO (Tiếp nhận qua Zalo)",
+            "FACEBOOK (Facebook Fanpage / MXH)",
+            "DIRECT (Khách đến đặt trực tiếp)",
+            "WEBSITE (Đặt chỗ qua Website)"
         });
 
         JTextField txtNote = new JTextField();
@@ -671,6 +663,7 @@ public class TableReservationPanel extends JPanel {
             "Nhận bàn thành công", JOptionPane.YES_NO_OPTION);
 
         loadAllDataAsync();
+        if (onTableStatusChanged != null) onTableStatusChanged.run();
 
         if (opt == JOptionPane.YES_OPTION && onTableSelectedForPOS != null) {
             DiningTable dt = tableList.stream().filter(t -> t.getId() == target.getTableId()).findFirst().orElse(null);
@@ -734,26 +727,8 @@ public class TableReservationPanel extends JPanel {
         JOptionPane.showMessageDialog(this, new JScrollPane(area), "Phiếu Đặt Bàn", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    private void showQRCodeDialog(DiningTable dt) {
-        String token = dt.getQrCodeToken() != null ? dt.getQrCodeToken() : "TABLE-" + dt.getId();
-        String url = "https://restaurant.pos/menu?token=" + token + "&table=" + dt.getId();
-
-        BufferedImage qr = QRCodeService.generateQRCode(url, 240, 240);
-
-        JPanel p = new JPanel(new BorderLayout(10, 10));
-        p.setBorder(new EmptyBorder(15, 15, 15, 15));
-        JLabel lblQR = new JLabel(new ImageIcon(qr), SwingConstants.CENTER);
-
-        JLabel lblInfo = new JLabel("<html><center><b>Mã QR Đặt món & Xem Menu tại bàn: " + dt.getName() + "</b><br><font color='#64748b'>" + url + "</font></center></html>", SwingConstants.CENTER);
-
-        p.add(lblInfo, BorderLayout.NORTH);
-        p.add(lblQR, BorderLayout.CENTER);
-
-        JOptionPane.showMessageDialog(this, p, "Mã QR Bàn " + dt.getName(), JOptionPane.PLAIN_MESSAGE);
-    }
-
     private void showChangeTableStatusDialog(DiningTable dt) {
-        String[] options = {"🟢 Bàn Trống (AVAILABLE)", "🔴 Đang Phục Vụ (OCCUPIED)", "🟡 Đã Đặt Trước (RESERVED)", "⚪ Đang Dọn Dẹp (CLEANING)"};
+        String[] options = {"● Bàn Trống (AVAILABLE)", "● Đang Phục Vụ (OCCUPIED)", "● Đã Đặt Trước (RESERVED)"};
         int sel = JOptionPane.showOptionDialog(this,
             "Chọn trạng thái mới cho bàn " + dt.getName() + ":",
             "Cập nhật trạng thái bàn",
@@ -762,9 +737,9 @@ public class TableReservationPanel extends JPanel {
         if (sel == 0) tableController.updateTableStatus(dt.getId(), TableStatus.AVAILABLE);
         else if (sel == 1) tableController.updateTableStatus(dt.getId(), TableStatus.OCCUPIED);
         else if (sel == 2) tableController.updateTableStatus(dt.getId(), TableStatus.RESERVED);
-        else if (sel == 3) tableController.updateTableStatus(dt.getId(), TableStatus.CLEANING);
 
         loadTablesAsync();
+        if (onTableStatusChanged != null) onTableStatusChanged.run();
     }
 
     private void showAddTableDialog() {
@@ -788,18 +763,183 @@ public class TableReservationPanel extends JPanel {
                 tableController.addTable(name, (int) spinCap.getValue());
                 JOptionPane.showMessageDialog(this, "Đã thêm bàn '" + name + "' thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 loadTablesAsync();
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Lỗi thêm bàn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
 
+    private void showEditTableDialog() {
+        if (tableList.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Chưa có bàn nào trong hệ thống!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JComboBox<DiningTable> cbTables = new JComboBox<>(tableList.toArray(new DiningTable[0]));
+        JTextField txtName = new JTextField();
+        JSpinner spinCap = new JSpinner(new SpinnerNumberModel(4, 1, 50, 1));
+
+        Runnable updateFields = () -> {
+            DiningTable sel = (DiningTable) cbTables.getSelectedItem();
+            if (sel != null) {
+                txtName.setText(sel.getName());
+                spinCap.setValue(sel.getCapacity());
+            }
+        };
+        updateFields.run();
+        cbTables.addActionListener(e -> updateFields.run());
+
+        JPanel p = new JPanel(new GridLayout(3, 2, 8, 8));
+        p.add(new JLabel("Chọn bàn cần sửa:"));
+        p.add(cbTables);
+        p.add(new JLabel("Tên bàn mới:"));
+        p.add(txtName);
+        p.add(new JLabel("Sức chứa (người):"));
+        p.add(spinCap);
+
+        int opt = JOptionPane.showConfirmDialog(this, p, "Chỉnh Sửa Thông Tin Bàn", JOptionPane.OK_CANCEL_OPTION);
+        if (opt == JOptionPane.OK_OPTION) {
+            DiningTable sel = (DiningTable) cbTables.getSelectedItem();
+            if (sel == null) return;
+            String newName = txtName.getText().trim();
+            if (newName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Tên bàn không được để trống!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            try {
+                tableController.updateTable(sel.getId(), newName, (int) spinCap.getValue());
+                JOptionPane.showMessageDialog(this, "Đã cập nhật bàn thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                loadTablesAsync();
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Lỗi cập nhật bàn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void showDeleteTableDialog() {
+        if (tableList.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Chưa có bàn nào trong hệ thống!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JComboBox<DiningTable> cbTables = new JComboBox<>(tableList.toArray(new DiningTable[0]));
+        JPanel p = new JPanel(new GridLayout(2, 1, 8, 8));
+        p.add(new JLabel("Chọn bàn cần xóa khỏi hệ thống:"));
+        p.add(cbTables);
+
+        int opt = JOptionPane.showConfirmDialog(this, p, "Xóa Bàn Ăn", JOptionPane.OK_CANCEL_OPTION);
+        if (opt == JOptionPane.OK_OPTION) {
+            DiningTable sel = (DiningTable) cbTables.getSelectedItem();
+            if (sel == null) return;
+            if (sel.getStatus() == TableStatus.OCCUPIED) {
+                JOptionPane.showMessageDialog(this, "Bàn đang có khách phục vụ! Không thể xóa.", "Không thể xóa", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            int confirm = JOptionPane.showConfirmDialog(this, "Bạn có chắc chắn muốn xóa bàn '" + sel.getName() + "' không?", "Xác nhận xóa", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    tableController.deleteTable(sel.getId());
+                    JOptionPane.showMessageDialog(this, "Đã xóa bàn thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+                    loadTablesAsync();
+                    if (onTableStatusChanged != null) onTableStatusChanged.run();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Lỗi khi xóa bàn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+    }
+
     private void showMoveTableDialog() {
-        JOptionPane.showMessageDialog(this, "Vui lòng chọn bàn đang phục vụ trong màn hình Thu ngân để chuyển bàn đơn giản nhất!", "Hướng dẫn chuyển bàn", JOptionPane.INFORMATION_MESSAGE);
+        List<DiningTable> occupied = tableList.stream().filter(t -> t.getStatus() == TableStatus.OCCUPIED).toList();
+        List<DiningTable> available = tableList.stream().filter(DiningTable::isAvailable).toList();
+
+        if (occupied.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Hiện tại không có bàn nào đang phục vụ để chuyển!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (available.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Không có bàn trống nào để chuyển đến!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JComboBox<DiningTable> cbFrom = new JComboBox<>(occupied.toArray(new DiningTable[0]));
+        JComboBox<DiningTable> cbTo = new JComboBox<>(available.toArray(new DiningTable[0]));
+
+        JPanel p = new JPanel(new GridLayout(2, 2, 8, 8));
+        p.add(new JLabel("Chuyển từ bàn (Đang phục vụ):"));
+        p.add(cbFrom);
+        p.add(new JLabel("Chuyển sang bàn (Trống):"));
+        p.add(cbTo);
+
+        int opt = JOptionPane.showConfirmDialog(this, p, "Chuyển Bàn Ăn", JOptionPane.OK_CANCEL_OPTION);
+        if (opt == JOptionPane.OK_OPTION) {
+            DiningTable fromTable = (DiningTable) cbFrom.getSelectedItem();
+            DiningTable toTable = (DiningTable) cbTo.getSelectedItem();
+            if (fromTable == null || toTable == null) return;
+
+            try {
+                Order openOrder = new com.pos.dao.OrderDAO().findOpenByTable(fromTable.getId());
+                if (openOrder == null) {
+                    tableController.updateTableStatus(toTable.getId(), TableStatus.OCCUPIED);
+                    tableController.updateTableStatus(fromTable.getId(), TableStatus.AVAILABLE);
+                } else {
+                    tableController.moveTable(openOrder.getId(), toTable.getId(), currentUser);
+                }
+                JOptionPane.showMessageDialog(this, "Đã chuyển thành công từ '" + fromTable.getName() + "' sang '" + toTable.getName() + "'!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                loadTablesAsync();
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Lỗi chuyển bàn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     private void showMergeTableDialog() {
-        JOptionPane.showMessageDialog(this, "Để gộp bàn: Bạn có thể thực hiện trực tiếp trong phân hệ Thu ngân hoặc liên hệ Quản lý!", "Hướng dẫn gộp bàn", JOptionPane.INFORMATION_MESSAGE);
+        List<DiningTable> occupied = tableList.stream().filter(t -> t.getStatus() == TableStatus.OCCUPIED).toList();
+        if (occupied.size() < 2) {
+            JOptionPane.showMessageDialog(this, "Cần ít nhất 2 bàn đang phục vụ để thực hiện gộp bàn!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JComboBox<DiningTable> cbSource = new JComboBox<>(occupied.toArray(new DiningTable[0]));
+        JComboBox<DiningTable> cbTarget = new JComboBox<>(occupied.toArray(new DiningTable[0]));
+        if (cbTarget.getItemCount() > 1) cbTarget.setSelectedIndex(1);
+
+        JPanel p = new JPanel(new GridLayout(2, 2, 8, 8));
+        p.add(new JLabel("Bàn chuyển gộp (Sẽ giải phóng bàn):"));
+        p.add(cbSource);
+        p.add(new JLabel("Bàn đích (Nhận tất cả món ăn):"));
+        p.add(cbTarget);
+
+        int opt = JOptionPane.showConfirmDialog(this, p, "Gộp Bàn Ăn", JOptionPane.OK_CANCEL_OPTION);
+        if (opt == JOptionPane.OK_OPTION) {
+            DiningTable src = (DiningTable) cbSource.getSelectedItem();
+            DiningTable tgt = (DiningTable) cbTarget.getSelectedItem();
+            if (src == null || tgt == null || src.getId() == tgt.getId()) {
+                JOptionPane.showMessageDialog(this, "Bàn chuyển gộp và bàn đích phải khác nhau!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                com.pos.dao.OrderDAO oDAO = new com.pos.dao.OrderDAO();
+                Order fromOrder = oDAO.findOpenByTable(src.getId());
+                Order toOrder = oDAO.findOpenByTable(tgt.getId());
+
+                if (fromOrder == null || toOrder == null) {
+                    JOptionPane.showMessageDialog(this, "Không tìm thấy hóa đơn đang mở trên một trong hai bàn!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                tableController.mergeTables(fromOrder.getId(), toOrder.getId());
+                JOptionPane.showMessageDialog(this, "Đã gộp toàn bộ món từ '" + src.getName() + "' vào '" + tgt.getName() + "' thành công!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                loadTablesAsync();
+                if (onTableStatusChanged != null) onTableStatusChanged.run();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Lỗi khi gộp bàn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     // =========================================================================

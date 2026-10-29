@@ -16,7 +16,7 @@ public class CategoryDAO {
     private Category mapRow(ResultSet rs) throws SQLException {
         return new Category(
             rs.getInt("id"),
-            rs.getString("name"),
+            com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("name")),
             CategoryType.valueOf(rs.getString("type"))
         );
     }

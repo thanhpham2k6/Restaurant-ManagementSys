@@ -8,7 +8,7 @@ import com.pos.model.ReservationStatus;
 import com.pos.model.User;
 import com.pos.utils.CurrencyFormat;
 import com.pos.utils.DateUtils;
-import com.pos.utils.QRCodeService;
+import com.pos.utils.TableUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -39,7 +39,6 @@ public class ReservationPanel extends JPanel {
     private JButton btnConfirm;
     private JButton btnSeatGuest;
     private JButton btnCancel;
-    private JButton btnViewQR;
     private JButton btnRefresh;
 
     public ReservationPanel(User currentUser) {
@@ -59,7 +58,7 @@ public class ReservationPanel extends JPanel {
         JPanel topPanel = new JPanel(new BorderLayout(10, 10));
         topPanel.setOpaque(false);
 
-        JLabel title = new JLabel("QUẢN LÝ ĐẶT BÀN TRƯỚC (RESERVATIONS) & QR TABLE");
+        JLabel title = new JLabel("QUẢN LÝ ĐẶT BÀN TRƯỚC (RESERVATIONS)");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
         title.setForeground(new Color(33, 33, 33));
 
@@ -74,14 +73,12 @@ public class ReservationPanel extends JPanel {
         btnConfirm = createButton("Xác nhận", new Color(30, 136, 229));
         btnSeatGuest = createButton("Xếp khách (Vào bàn)", new Color(230, 81, 0));
         btnCancel = createButton("Hủy đặt", new Color(211, 47, 47));
-        btnViewQR = createButton("Mã QR Bàn", new Color(92, 107, 115));
         btnRefresh = createButton("Làm mới", new Color(120, 144, 156));
 
         btnAdd.addActionListener(e -> showAddReservationDialog());
         btnConfirm.addActionListener(e -> confirmSelected());
         btnSeatGuest.addActionListener(e -> seatSelected());
         btnCancel.addActionListener(e -> cancelSelected());
-        btnViewQR.addActionListener(e -> showTableQRCodeDialog());
         btnRefresh.addActionListener(e -> loadDataAsync());
 
         filterPanel.add(new JLabel("Lọc:"));
@@ -90,7 +87,6 @@ public class ReservationPanel extends JPanel {
         filterPanel.add(btnConfirm);
         filterPanel.add(btnSeatGuest);
         filterPanel.add(btnCancel);
-        filterPanel.add(btnViewQR);
         filterPanel.add(btnRefresh);
 
         topPanel.add(title, BorderLayout.WEST);
@@ -109,7 +105,7 @@ public class ReservationPanel extends JPanel {
         resTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         resTable.getTableHeader().setBackground(new Color(238, 242, 246));
         resTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        resTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(resTable);
 
         JScrollPane scroll = new JScrollPane(resTable);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(224, 224, 224)));
@@ -242,41 +238,5 @@ public class ReservationPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Lỗi: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
         }
-    }
-
-    private void showTableQRCodeDialog() {
-        List<DiningTable> tables = tableDAO.findAll();
-        if (tables.isEmpty()) return;
-
-        JComboBox<DiningTable> cb = new JComboBox<>(tables.toArray(new DiningTable[0]));
-        JLabel qrLabel = new JLabel("", SwingConstants.CENTER);
-        qrLabel.setPreferredSize(new Dimension(220, 220));
-
-        Runnable updateQr = () -> {
-            DiningTable t = (DiningTable) cb.getSelectedItem();
-            if (t != null) {
-                String token = t.getQrCodeToken() != null ? t.getQrCodeToken() : "TABLE-" + t.getId();
-                String url = QRCodeService.buildTableMenuUrl("192.168.1.100", 8080, token);
-                BufferedImage img = QRCodeService.generateQRCode(url, 200, 200);
-                if (img != null) {
-                    qrLabel.setIcon(new ImageIcon(img));
-                }
-            }
-        };
-
-        cb.addActionListener(e -> updateQr.run());
-        updateQr.run();
-
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        top.add(new JLabel("Chọn bàn cần tạo mã:"));
-        top.add(cb);
-
-        panel.add(top, BorderLayout.NORTH);
-        panel.add(qrLabel, BorderLayout.CENTER);
-        JLabel note = new JLabel("<html><center>Khách hàng có thể quét mã QR này để xem Menu<br>và đặt món trực tiếp tại bàn.</center></html>", SwingConstants.CENTER);
-        panel.add(note, BorderLayout.SOUTH);
-
-        JOptionPane.showMessageDialog(this, panel, "Mã QR Đặt món tại bàn", JOptionPane.PLAIN_MESSAGE);
     }
 }

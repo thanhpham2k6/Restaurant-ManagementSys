@@ -19,11 +19,11 @@ public class InventoryItemDAO {
         int supId = rs.getInt("supplier_id");
         if (!rs.wasNull()) item.setSupplierId(supId);
         try {
-            item.setSupplierName(rs.getString("supplier_name"));
+            item.setSupplierName(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("supplier_name")));
         } catch (SQLException ignored) {}
-        item.setName(rs.getString("name"));
-        item.setCategory(rs.getString("category"));
-        item.setUnit(rs.getString("unit"));
+        item.setName(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("name")));
+        item.setCategory(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("category")));
+        item.setUnit(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("unit")));
         item.setCostPrice(rs.getBigDecimal("cost_price"));
         item.setStockQty(rs.getBigDecimal("stock_qty"));
         item.setMinQty(rs.getBigDecimal("min_qty"));

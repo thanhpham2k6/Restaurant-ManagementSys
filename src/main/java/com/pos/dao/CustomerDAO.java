@@ -17,7 +17,7 @@ public class CustomerDAO {
     private Customer mapRow(ResultSet rs) throws SQLException {
         Customer c = new Customer();
         c.setId(rs.getInt("id"));
-        c.setName(rs.getString("name"));
+        c.setName(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("name")));
         c.setPhone(rs.getString("phone"));
         c.setEmail(rs.getString("email"));
         c.setAddress(rs.getString("address"));

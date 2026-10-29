@@ -180,6 +180,21 @@ public class TableController {
         tableDAO.insert(t);
     }
 
+    public void updateTable(int id, String name, int capacity) {
+        String sql = "UPDATE dining_tables SET name=?, capacity=? WHERE id=?";
+        try (java.sql.Connection c = com.pos.utils.DatabaseConnection.getInstance().getConnection();
+             java.sql.PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.setInt(2, capacity);
+            ps.setInt(3, id);
+            ps.executeUpdate();
+        } catch (java.sql.SQLException e) { log.error("updateTable error", e); }
+    }
+
+    public void deleteTable(int id) {
+        tableDAO.delete(id);
+    }
+
     public static class TableBusyException extends Exception {
         public TableBusyException(String msg) {
             super(msg);

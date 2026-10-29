@@ -18,7 +18,7 @@ public class TableDAO {
         try { ver = rs.getInt("version"); } catch (SQLException ignored) {}
         DiningTable dt = new DiningTable(
             rs.getInt("id"),
-            rs.getString("name"),
+            com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("name")),
             rs.getInt("capacity"),
             TableStatus.valueOf(rs.getString("status")),
             ver

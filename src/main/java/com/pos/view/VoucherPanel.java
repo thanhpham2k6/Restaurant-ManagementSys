@@ -5,6 +5,7 @@ import com.pos.model.DiscountType;
 import com.pos.model.User;
 import com.pos.model.Voucher;
 import com.pos.utils.CurrencyFormat;
+import com.pos.utils.TableUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -79,7 +80,7 @@ public class VoucherPanel extends JPanel {
         voucherTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         voucherTable.getTableHeader().setBackground(new Color(238, 242, 246));
         voucherTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        voucherTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(voucherTable);
 
         JScrollPane scroll = new JScrollPane(voucherTable);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(224, 224, 224)));

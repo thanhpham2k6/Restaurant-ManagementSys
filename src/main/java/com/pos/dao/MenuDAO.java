@@ -17,13 +17,13 @@ public class MenuDAO {
     private MenuItem mapRow(ResultSet rs) throws SQLException {
         Category cat = new Category(
             rs.getInt("cat_id"),
-            rs.getString("cat_name"),
+            com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("cat_name")),
             CategoryType.valueOf(rs.getString("cat_type"))
         );
         MenuItem item = new MenuItem(
             rs.getInt("id"),
             cat,
-            rs.getString("name"),
+            com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("name")),
             rs.getBigDecimal("price"),
             rs.getBoolean("is_available"),
             rs.getInt("version")

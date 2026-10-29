@@ -3,6 +3,7 @@ package com.pos.view;
 import com.pos.controller.UserController;
 import com.pos.model.Role;
 import com.pos.model.User;
+import com.pos.utils.TableUtils;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -118,7 +119,7 @@ public class UserManagementPanel extends JPanel {
         userTable.setSelectionBackground(new Color(237, 242, 247));
         userTable.setSelectionForeground(new Color(15, 23, 42));
         userTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        userTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(userTable);
 
         userTable.getColumnModel().getColumn(0).setPreferredWidth(50);
         userTable.getColumnModel().getColumn(1).setPreferredWidth(120);

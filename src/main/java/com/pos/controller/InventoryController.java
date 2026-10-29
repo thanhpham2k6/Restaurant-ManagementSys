@@ -241,7 +241,7 @@ public class InventoryController {
                         StockMovement sm = new StockMovement();
                         sm.setItemId(d.getItemId());
                         sm.setUserId(user.getId());
-                        sm.setType(MovementType.ADJUST_AUDIT);
+                        sm.setType(MovementType.ADJUSTMENT);
                         sm.setQuantity(diff);
                         sm.setNote("Kiểm kê #" + auditCode + (d.getReason() != null ? ": " + d.getReason() : ""));
                         movementDAO.insert(conn, sm);
@@ -259,6 +259,193 @@ public class InventoryController {
             log.error("performStocktake error", e);
             throw new RuntimeException("Lỗi kết nối CSDL: " + e.getMessage(), e);
         }
+    }
+
+    public void returnStockToSupplier(int itemId, Integer supplierId, BigDecimal qty, BigDecimal unitPrice, User user, String note) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Số lượng trả phải lớn hơn 0");
+        }
+        try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                InventoryItem item = itemDAO.findById(itemId);
+                if (item == null) throw new IllegalArgumentException("Hàng hóa không tồn tại");
+                if (item.getStockQty().compareTo(qty) < 0) {
+                    throw new IllegalStateException("Số lượng tồn kho không đủ để trả (Tồn hiện tại: " + item.getStockQty() + " " + item.getUnit() + ")");
+                }
+
+                itemDAO.updateStock(conn, itemId, qty.negate());
+
+                StockMovement sm = new StockMovement();
+                sm.setItemId(itemId);
+                sm.setSupplierId(supplierId);
+                sm.setUserId(user.getId());
+                sm.setType(MovementType.RETURN);
+                sm.setQuantity(qty.negate());
+                sm.setUnitPrice(unitPrice != null ? unitPrice : item.getCostPrice());
+                sm.setNote(note != null ? note : "Trả hàng lại Nhà Cung Cấp");
+                movementDAO.insert(conn, sm);
+
+                conn.commit();
+                log.info("Trả hàng NCC thành công: item={}, qty={}", itemId, qty);
+                notifyObservers();
+            } catch (Exception e) {
+                conn.rollback();
+                throw new RuntimeException("Lỗi trả hàng: " + e.getMessage(), e);
+            }
+        } catch (SQLException e) {
+            log.error("returnStockToSupplier error", e);
+            throw new RuntimeException("Lỗi kết nối CSDL: " + e.getMessage(), e);
+        }
+    }
+
+    public void exportWaste(int itemId, BigDecimal qty, User user, String reason) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Số lượng xuất hủy phải lớn hơn 0");
+        }
+        try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                InventoryItem item = itemDAO.findById(itemId);
+                if (item == null) throw new IllegalArgumentException("Hàng hóa không tồn tại");
+                if (item.getStockQty().compareTo(qty) < 0) {
+                    throw new IllegalStateException("Số lượng tồn kho không đủ để xuất hủy (Tồn: " + item.getStockQty() + " " + item.getUnit() + ")");
+                }
+
+                itemDAO.updateStock(conn, itemId, qty.negate());
+
+                StockMovement sm = new StockMovement();
+                sm.setItemId(itemId);
+                sm.setUserId(user.getId());
+                sm.setType(MovementType.WASTE);
+                sm.setQuantity(qty.negate());
+                sm.setUnitPrice(item.getCostPrice());
+                sm.setNote(reason != null ? reason : "Xuất hủy do hư hỏng / hết hạn sử dụng");
+                movementDAO.insert(conn, sm);
+
+                conn.commit();
+                log.info("Xuất hủy thành công: item={}, qty={}", itemId, qty);
+                notifyObservers();
+            } catch (Exception e) {
+                conn.rollback();
+                throw new RuntimeException("Lỗi xuất hủy: " + e.getMessage(), e);
+            }
+        } catch (SQLException e) {
+            log.error("exportWaste error", e);
+            throw new RuntimeException("Lỗi kết nối CSDL: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Tính toán ước tính định lượng tiêu hao lý thuyết của các nguyên vật liệu dựa trên số lượng các món đã bán hôm nay.
+     * Người kiểm kho dùng số liệu này để so sánh, đối chiếu với số lượng đếm thực tế khi kiểm kê.
+     */
+    public List<TheoreticalUsage> getTheoreticalUsagesToday() {
+        List<TheoreticalUsage> result = new ArrayList<>();
+        List<InventoryItem> items = itemDAO.findActive();
+
+        // Đếm số món bán ra hôm nay
+        java.util.Map<Integer, Integer> dishSales = new java.util.HashMap<>();
+        String sqlSales = "SELECT od.menu_item_id, SUM(od.quantity) as total_sold " +
+                          "FROM order_details od JOIN orders o ON od.order_id = o.id " +
+                          "WHERE CAST(o.created_at AS DATE) = CAST(GETDATE() AS DATE) AND o.status != 'CANCELLED' " +
+                          "GROUP BY od.menu_item_id";
+
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             java.sql.Statement st = conn.createStatement();
+             java.sql.ResultSet rs = st.executeQuery(sqlSales)) {
+            while (rs.next()) {
+                dishSales.put(rs.getInt("menu_item_id"), rs.getInt("total_sold"));
+            }
+        } catch (Exception ex) {
+            log.warn("getTheoreticalUsagesToday sales query error: {}", ex.getMessage());
+        }
+
+        for (InventoryItem it : items) {
+            BigDecimal used = BigDecimal.ZERO;
+            int dishesCount = 0;
+
+            // Tính toán định lượng tiêu hao lý thuyết theo công thức chuẩn:
+            switch (it.getId()) {
+                case 1: // Thịt bò thăn
+                    // Phở bò (id 1): 0.15kg, Cơm rang dưa bò (id 15): 0.12kg, Bò lúc lắc (id 34): 0.20kg, Bún bò Huế (id 5): 0.08kg
+                    int s1 = dishSales.getOrDefault(1, 0);
+                    int s15 = dishSales.getOrDefault(15, 0);
+                    int s34 = dishSales.getOrDefault(34, 0);
+                    int s5 = dishSales.getOrDefault(5, 0);
+                    dishesCount = s1 + s15 + s34 + s5;
+                    used = new BigDecimal(s1 * 0.15 + s15 * 0.12 + s34 * 0.20 + s5 * 0.08);
+                    break;
+                case 2: // Thịt heo ba chỉ
+                    // Cơm tấm (id 13): 0.15kg, Bún đậu (id 7): 0.15kg, Bánh xèo (id 21): 0.10kg
+                    int s13 = dishSales.getOrDefault(13, 0);
+                    int s7 = dishSales.getOrDefault(7, 0);
+                    int s21 = dishSales.getOrDefault(21, 0);
+                    dishesCount = s13 + s7 + s21;
+                    used = new BigDecimal(s13 * 0.15 + s7 * 0.15 + s21 * 0.10);
+                    break;
+                case 3: // Gà ta
+                    // Phở gà (id 2): 0.25 con, Cơm gà (id 14): 0.25 con, Gà rán (id 28): 0.20 con
+                    int s2 = dishSales.getOrDefault(2, 0);
+                    int s14 = dishSales.getOrDefault(14, 0);
+                    int s28 = dishSales.getOrDefault(28, 0);
+                    dishesCount = s2 + s14 + s28;
+                    used = new BigDecimal(s2 * 0.25 + s14 * 0.25 + s28 * 0.20);
+                    break;
+                case 4: // Tôm sú
+                    // Hủ tiếu (id 3): 0.08kg, Mì Quảng (id 9): 0.08kg, Tôm càng (id 38): 0.25kg
+                    int s3 = dishSales.getOrDefault(3, 0);
+                    int s9 = dishSales.getOrDefault(9, 0);
+                    int s38 = dishSales.getOrDefault(38, 0);
+                    dishesCount = s3 + s9 + s38;
+                    used = new BigDecimal(s3 * 0.08 + s9 * 0.08 + s38 * 0.25);
+                    break;
+                case 5: // Cua biển
+                    // Bánh canh cua (id 4): 0.15kg, Bún riêu (id 8): 0.15kg, Cua rang me (id 39): 0.30kg
+                    int s4 = dishSales.getOrDefault(4, 0);
+                    int s8 = dishSales.getOrDefault(8, 0);
+                    int s39 = dishSales.getOrDefault(39, 0);
+                    dishesCount = s4 + s8 + s39;
+                    used = new BigDecimal(s4 * 0.15 + s8 * 0.15 + s39 * 0.30);
+                    break;
+                case 7: // Hành hoa & Ngò rí
+                    // Món nước (1-4) & Món bún (5-8): ~0.03 kg / tô
+                    int totalBowls = 0;
+                    for (int mi = 1; mi <= 8; mi++) totalBowls += dishSales.getOrDefault(mi, 0);
+                    dishesCount = totalBowls;
+                    used = new BigDecimal(totalBowls * 0.03);
+                    break;
+                case 8: // Cà chua Đà Lạt
+                    // Bún riêu (id 8): 0.10kg, Mì xào (id 11): 0.08kg
+                    int s8_c = dishSales.getOrDefault(8, 0);
+                    int s11 = dishSales.getOrDefault(11, 0);
+                    dishesCount = s8_c + s11;
+                    used = new BigDecimal(s8_c * 0.10 + s11 * 0.08);
+                    break;
+                case 9: // Bánh phở tươi
+                    // Phở bò (id 1) & Phở gà (id 2): ~0.20 kg / bát
+                    int phoCount = dishSales.getOrDefault(1, 0) + dishSales.getOrDefault(2, 0);
+                    dishesCount = phoCount;
+                    used = new BigDecimal(phoCount * 0.20);
+                    break;
+                case 11: // Gạo ST25
+                    // Cơm (13-16): ~0.15 kg / đĩa
+                    int riceCount = 0;
+                    for (int mi = 13; mi <= 16; mi++) riceCount += dishSales.getOrDefault(mi, 0);
+                    dishesCount = riceCount;
+                    used = new BigDecimal(riceCount * 0.15);
+                    break;
+                default:
+                    // Các mặt hàng khác: ước tính tỉ lệ tượng trưng theo doanh số chung
+                    used = BigDecimal.ZERO;
+                    break;
+            }
+
+            used = used.setScale(2, java.math.RoundingMode.HALF_UP);
+            BigDecimal rem = it.getStockQty().subtract(used);
+            result.add(new TheoreticalUsage(it.getId(), it.getName(), it.getUnit(), it.getStockQty(), used, rem, dishesCount));
+        }
+        return result;
     }
 
     public List<InventoryAudit> getAllAudits() {

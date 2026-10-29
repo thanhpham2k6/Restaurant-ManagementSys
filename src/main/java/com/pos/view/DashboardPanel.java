@@ -8,6 +8,7 @@ import com.pos.model.*;
 import com.pos.utils.CurrencyFormat;
 import com.pos.utils.DatabaseConnection;
 import com.pos.utils.DateUtils;
+import com.pos.utils.TableUtils;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -72,7 +73,10 @@ public class DashboardPanel extends JPanel implements OrderObserver {
         btnRefresh.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnRefresh.setBackground(new Color(238, 242, 246));
         btnRefresh.setFocusPainted(false);
-        btnRefresh.addActionListener(e -> refreshData());
+        btnRefresh.addActionListener(e -> {
+            com.pos.utils.DatabaseEncodingFixer.autoFixDatabaseAsync();
+            refreshData();
+        });
         headerPanel.add(btnRefresh, BorderLayout.EAST);
 
         add(headerPanel, BorderLayout.NORTH);
@@ -89,22 +93,22 @@ public class DashboardPanel extends JPanel implements OrderObserver {
         // Card 1: Revenue Today
         lblRevenueVal = new JLabel("0 đ");
         lblRevenueSub = new JLabel("0 đơn đã thanh toán");
-        cardsGrid.add(createMetricCard("Doanh thu hôm nay", lblRevenueVal, lblRevenueSub, new Color(16, 185, 129)));
+        cardsGrid.add(createMetricCard("Doanh thu hôm nay", lblRevenueVal, lblRevenueSub, new Color(16, 185, 129), "$"));
 
         // Card 2: Tables Active
         lblTableVal = new JLabel("0 / 0");
         lblTableSub = new JLabel("0 bàn đang có khách");
-        cardsGrid.add(createMetricCard("Bàn đang phục vụ", lblTableVal, lblTableSub, new Color(59, 130, 246)));
+        cardsGrid.add(createMetricCard("Bàn đang phục vụ", lblTableVal, lblTableSub, new Color(59, 130, 246), "●"));
 
         // Card 3: Kitchen Pending
         lblKitchenVal = new JLabel("0");
         lblKitchenSub = new JLabel("Món đang chờ chế biến");
-        cardsGrid.add(createMetricCard("Bếp đang thực hiện", lblKitchenVal, lblKitchenSub, new Color(245, 158, 11)));
+        cardsGrid.add(createMetricCard("Bếp đang thực hiện", lblKitchenVal, lblKitchenSub, new Color(245, 158, 11), "▲"));
 
         // Card 4: Low Stock Alert
         lblAlertVal = new JLabel("0");
         lblAlertSub = new JLabel("Mặt hàng cần nhập thêm");
-        cardsGrid.add(createMetricCard("Cảnh báo tồn kho", lblAlertVal, lblAlertSub, new Color(239, 68, 68)));
+        cardsGrid.add(createMetricCard("Cảnh báo tồn kho", lblAlertVal, lblAlertSub, new Color(239, 68, 68), "!"));
 
         centerPanel.add(cardsGrid, BorderLayout.NORTH);
 
@@ -138,35 +142,53 @@ public class DashboardPanel extends JPanel implements OrderObserver {
         add(centerPanel, BorderLayout.CENTER);
     }
 
-    private JPanel createMetricCard(String title, JLabel valLbl, JLabel subLbl, Color accent) {
-        JPanel card = new JPanel(new BorderLayout(0, 4));
+    private JPanel createMetricCard(String title, JLabel valLbl, JLabel subLbl, Color accent, String iconSymbol) {
+        JPanel card = new JPanel(new BorderLayout(14, 0));
         card.setBackground(Color.WHITE);
         card.setBorder(new CompoundBorder(
             new LineBorder(new Color(226, 232, 240), 1, true),
-            new EmptyBorder(12, 16, 12, 16)
+            new EmptyBorder(14, 16, 14, 16)
         ));
 
-        JPanel top = new JPanel(new BorderLayout());
-        top.setOpaque(false);
+        // Circular Icon Badge (like in KeroUI dashboard)
+        JPanel iconBadge = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(accent);
+                g2.fillOval(0, 0, getWidth(), getHeight());
+
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(iconSymbol)) / 2;
+                int y = ((getHeight() - fm.getHeight()) / 2) + fm.getAscent();
+                g2.drawString(iconSymbol, x, y);
+                g2.dispose();
+            }
+        };
+        iconBadge.setPreferredSize(new Dimension(46, 46));
+        card.add(iconBadge, BorderLayout.WEST);
+
+        // Texts
+        JPanel contentP = new JPanel(new GridLayout(3, 1, 0, 2));
+        contentP.setOpaque(false);
+
         JLabel lblTitle = new JLabel(title);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 11));
         lblTitle.setForeground(new Color(100, 116, 139));
-        top.add(lblTitle, BorderLayout.WEST);
+        contentP.add(lblTitle);
 
-        JPanel pIndicator = new JPanel();
-        pIndicator.setBackground(accent);
-        pIndicator.setPreferredSize(new Dimension(8, 8));
-        top.add(pIndicator, BorderLayout.EAST);
-        card.add(top, BorderLayout.NORTH);
-
-        valLbl.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        valLbl.setFont(new Font("Segoe UI", Font.BOLD, 19));
         valLbl.setForeground(new Color(15, 23, 42));
-        card.add(valLbl, BorderLayout.CENTER);
+        contentP.add(valLbl);
 
-        subLbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        subLbl.setForeground(new Color(100, 116, 139));
-        card.add(subLbl, BorderLayout.SOUTH);
+        subLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        subLbl.setForeground(new Color(148, 163, 184));
+        contentP.add(subLbl);
 
+        card.add(contentP, BorderLayout.CENTER);
         return card;
     }
 
@@ -195,7 +217,7 @@ public class DashboardPanel extends JPanel implements OrderObserver {
         table.getTableHeader().setForeground(new Color(71, 85, 105));
         table.setSelectionBackground(new Color(237, 242, 247));
         table.setSelectionForeground(new Color(15, 23, 42));
-        table.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(table);
 
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);
@@ -218,7 +240,7 @@ public class DashboardPanel extends JPanel implements OrderObserver {
         BigDecimal todayTotal = BigDecimal.ZERO;
         int paidCount = 0;
         String sqlRev = "SELECT COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as total " +
-                        "FROM orders WHERE status='PAID' AND CAST(COALESCE(completed_at, paid_at) AS DATE) = CAST(GETDATE() AS DATE)";
+                        "FROM orders WHERE status='PAID' AND CAST(COALESCE(completed_at, created_at) AS DATE) = CAST(GETDATE() AS DATE)";
         try (Connection c = DatabaseConnection.getInstance().getConnection();
              Statement s = c.createStatement();
              ResultSet rs = s.executeQuery(sqlRev)) {
@@ -260,7 +282,7 @@ public class DashboardPanel extends JPanel implements OrderObserver {
 
     private void loadRecentOrders() {
         String sql = "SELECT TOP 15 o.id, COALESCE(t.name, o.order_type) as table_name, u.full_name as cashier_name, " +
-                     "o.total_amount, o.status, COALESCE(o.completed_at, o.paid_at, o.created_at) as order_time " +
+                     "o.total_amount, o.status, COALESCE(o.completed_at, o.created_at) as order_time " +
                      "FROM orders o " +
                      "LEFT JOIN dining_tables t ON o.table_id = t.id " +
                      "LEFT JOIN users u ON o.user_id = u.id " +

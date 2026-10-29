@@ -15,11 +15,11 @@ public class SupplierDAO {
     private Supplier mapRow(ResultSet rs) throws SQLException {
         Supplier s = new Supplier();
         s.setId(rs.getInt("id"));
-        s.setName(rs.getString("name"));
-        s.setContactPerson(rs.getString("contact_person"));
+        s.setName(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("name")));
+        s.setContactPerson(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("contact_person")));
         s.setPhone(rs.getString("phone"));
         s.setEmail(rs.getString("email"));
-        s.setAddress(rs.getString("address"));
+        s.setAddress(com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("address")));
         s.setActive(rs.getBoolean("is_active"));
         return s;
     }

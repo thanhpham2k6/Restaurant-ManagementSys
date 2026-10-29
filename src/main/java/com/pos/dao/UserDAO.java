@@ -18,7 +18,7 @@ public class UserDAO {
             rs.getInt("id"),
             rs.getString("username"),
             rs.getString("password_hash"),
-            rs.getString("full_name"),
+            com.pos.utils.DatabaseEncodingFixer.fixMojibake(rs.getString("full_name")),
             Role.valueOf(rs.getString("role")),
             rs.getBoolean("is_active")
         );

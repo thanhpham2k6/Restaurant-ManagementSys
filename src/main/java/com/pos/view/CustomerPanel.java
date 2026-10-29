@@ -5,6 +5,7 @@ import com.pos.model.Customer;
 import com.pos.model.MembershipTier;
 import com.pos.model.User;
 import com.pos.utils.CurrencyFormat;
+import com.pos.utils.TableUtils;
 import com.pos.utils.DateUtils;
 
 import javax.swing.*;
@@ -119,7 +120,7 @@ public class CustomerPanel extends JPanel {
         custTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         custTable.getTableHeader().setBackground(new Color(238, 242, 246));
         custTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        custTable.setAutoCreateRowSorter(true);
+        TableUtils.applySmartSorting(custTable);
 
         JScrollPane scroll = new JScrollPane(custTable);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(224, 224, 224)));

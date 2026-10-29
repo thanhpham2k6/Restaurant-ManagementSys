@@ -114,4 +114,4 @@ java -jar target/restaurant-pos-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```powershell
 mvn clean compile exec:java
 ```
-Hoặc mở thư mục dự án trực tiếp bằng **Apache NetBeans**, **IntelliJ IDEA** hoặc **Eclipse** và nhấn **Run Project** (Main class: `com.pos.Main`).
+Hoặc mở thư mục dự án trực tiếp bằng **Apache NetBeans**, **IntelliJ IDEA** hoặc **Eclipse** và nhấn **Run Project** (Main class: `com.pos.Main`)

@@ -412,6 +412,7 @@ public class TableReservationPanel extends JPanel {
         resTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         resTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         resTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        resTable.setAutoCreateRowSorter(true);
 
         // Alignment & Colors
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
@@ -640,11 +641,12 @@ public class TableReservationPanel extends JPanel {
     }
 
     private void confirmSelectedReservation() {
-        int row = resTable.getSelectedRow();
-        if (row < 0) {
+        int viewRow = resTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một lịch đặt bàn trên bảng!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        int row = resTable.convertRowIndexToModel(viewRow);
         int id = (int) resTableModel.getValueAt(row, 0);
         reservationController.confirmReservation(id);
         JOptionPane.showMessageDialog(this, "Đã xác nhận đặt bàn thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
@@ -652,11 +654,12 @@ public class TableReservationPanel extends JPanel {
     }
 
     private void seatSelectedReservation() {
-        int row = resTable.getSelectedRow();
-        if (row < 0) {
+        int viewRow = resTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn lịch đặt bàn để nhận khách vào bàn!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        int row = resTable.convertRowIndexToModel(viewRow);
         int id = (int) resTableModel.getValueAt(row, 0);
         Reservation target = resList.stream().filter(r -> r.getId() == id).findFirst().orElse(null);
         if (target == null) return;
@@ -676,11 +679,12 @@ public class TableReservationPanel extends JPanel {
     }
 
     private void cancelSelectedReservation() {
-        int row = resTable.getSelectedRow();
-        if (row < 0) {
+        int viewRow = resTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn lịch đặt bàn cần hủy!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        int row = resTable.convertRowIndexToModel(viewRow);
         int id = (int) resTableModel.getValueAt(row, 0);
         Reservation target = resList.stream().filter(r -> r.getId() == id).findFirst().orElse(null);
         if (target == null) return;
@@ -694,11 +698,12 @@ public class TableReservationPanel extends JPanel {
     }
 
     private void printSelectedReservation() {
-        int row = resTable.getSelectedRow();
-        if (row < 0) {
+        int viewRow = resTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn lịch đặt bàn cần in phiếu!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        int row = resTable.convertRowIndexToModel(viewRow);
         int id = (int) resTableModel.getValueAt(row, 0);
         Reservation r = resList.stream().filter(res -> res.getId() == id).findFirst().orElse(null);
         if (r == null) return;

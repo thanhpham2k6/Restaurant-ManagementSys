@@ -14,8 +14,8 @@ set /p PWD="Nhập mật khẩu SQL [Mặc định: 12345]: "
 if "%PWD%"=="" set PWD=12345
 
 echo.
-echo Đang thực thi setup_database.sql trên %SERVER%...
-sqlcmd -S %SERVER% -U %USER% -P %PWD% -C -i "%~dp0setup_database.sql"
+echo Đang thực thi setup_database.sql trên %SERVER% (hỗ trợ mã hóa UTF-8 tiếng Việt)...
+sqlcmd -S %SERVER% -U %USER% -P %PWD% -C -f 65001 -i "%~dp0setup_database.sql"
 
 if %ERRORLEVEL% EQU 0 (
     echo.

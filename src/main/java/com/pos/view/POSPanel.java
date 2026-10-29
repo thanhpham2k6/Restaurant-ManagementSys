@@ -226,6 +226,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         menuTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         menuTable.setRowHeight(32);
         menuTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        menuTable.setAutoCreateRowSorter(true);
         menuTable.getColumnModel().getColumn(0).setMaxWidth(50);
         menuTable.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(JTable t, Object val, boolean sel, boolean foc, int r, int c) {
@@ -352,8 +353,9 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     }
 
     private void addSelectedMenuItemToOrder() {
-        int r = menuTable.getSelectedRow();
-        if (r < 0) return;
+        int viewRow = menuTable.getSelectedRow();
+        if (viewRow < 0) return;
+        int r = menuTable.convertRowIndexToModel(viewRow);
         int id = (int) menuTableModel.getValueAt(r, 0);
         MenuItem item = menuDAO.findById(id);
         if (item != null) quickAddMenuItem(item, 1, "");
@@ -466,6 +468,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         invoiceTable.setRowHeight(30);
         invoiceTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         invoiceTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        invoiceTable.setAutoCreateRowSorter(true);
 
         invoiceTable.getColumnModel().getColumn(1).setMaxWidth(45);
         invoiceTable.getColumnModel().getColumn(4).setMaxWidth(70);
@@ -719,30 +722,41 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             }
         }
 
-        if (currentOrder == null) return;
+        if (currentOrder == null) {
+            JOptionPane.showMessageDialog(this, "Chưa thể tạo đơn hàng. Vui lòng mở bàn hoặc tạo đơn mới trước!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-        // Check if item already in details
-        OrderDetail existing = null;
-        for (OrderDetail d : currentOrder.getDetails()) {
-            if (d.getItem() != null && d.getItem().getId() == item.getId() && d.getStatus() == ItemStatus.PENDING) {
-                existing = d;
-                break;
+        try {
+            // Check if item already in details
+            OrderDetail existing = null;
+            if (currentOrder.getDetails() != null) {
+                for (OrderDetail d : currentOrder.getDetails()) {
+                    if (d.getItem() != null && d.getItem().getId() == item.getId() && d.getStatus() == ItemStatus.PENDING) {
+                        existing = d;
+                        break;
+                    }
+                }
             }
-        }
 
-        if (existing != null) {
-            existing.setQuantity(existing.getQuantity() + qty);
-            orderController.updateItemQuantity(existing.getId(), existing.getQuantity());
-        } else {
-            orderController.addItem(currentOrder, item, qty, note);
-        }
+            if (existing != null) {
+                existing.setQuantity(existing.getQuantity() + qty);
+                orderController.updateItemQuantity(existing.getId(), existing.getQuantity());
+            } else {
+                orderController.addItem(currentOrder, item, qty, note);
+            }
 
-        loadInvoice();
+            loadInvoice();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Lỗi thêm món vào đơn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void modifySelectedItemQty(int delta) {
-        int r = invoiceTable.getSelectedRow();
-        if (r < 0 || currentOrder == null || r >= currentOrder.getDetails().size()) return;
+        int viewRow = invoiceTable.getSelectedRow();
+        if (viewRow < 0 || currentOrder == null) return;
+        int r = invoiceTable.convertRowIndexToModel(viewRow);
+        if (r >= currentOrder.getDetails().size()) return;
         OrderDetail d = currentOrder.getDetails().get(r);
         int newQty = d.getQuantity() + delta;
         if (newQty <= 0) {
@@ -754,16 +768,20 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     }
 
     private void removeSelectedItem() {
-        int r = invoiceTable.getSelectedRow();
-        if (r < 0 || currentOrder == null || r >= currentOrder.getDetails().size()) return;
+        int viewRow = invoiceTable.getSelectedRow();
+        if (viewRow < 0 || currentOrder == null) return;
+        int r = invoiceTable.convertRowIndexToModel(viewRow);
+        if (r >= currentOrder.getDetails().size()) return;
         OrderDetail d = currentOrder.getDetails().get(r);
         orderController.removeItemFromOrder(d.getId());
         loadInvoice();
     }
 
     private void editSelectedItemNote() {
-        int r = invoiceTable.getSelectedRow();
-        if (r < 0 || currentOrder == null || r >= currentOrder.getDetails().size()) return;
+        int viewRow = invoiceTable.getSelectedRow();
+        if (viewRow < 0 || currentOrder == null) return;
+        int r = invoiceTable.convertRowIndexToModel(viewRow);
+        if (r >= currentOrder.getDetails().size()) return;
         OrderDetail d = currentOrder.getDetails().get(r);
         String itemName = d.getItem() != null ? d.getItem().getName() : "";
         String note = JOptionPane.showInputDialog(this, "Nhập ghi chú cho món '" + itemName + "':", d.getNote() != null ? d.getNote() : "");

@@ -74,6 +74,7 @@ public class KitchenPanel extends JPanel implements OrderObserver {
         itemTable.getColumnModel().getColumn(5).setPreferredWidth(140);
         itemTable.getColumnModel().getColumn(6).setPreferredWidth(140);
         itemTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        itemTable.setAutoCreateRowSorter(true);
         itemTable.setDefaultRenderer(Object.class, new StatusCellRenderer());
 
         add(new JScrollPane(itemTable), BorderLayout.CENTER);
@@ -160,11 +161,12 @@ public class KitchenPanel extends JPanel implements OrderObserver {
     }
 
     private int getSelectedDetailId() {
-        int row = itemTable.getSelectedRow();
-        if (row < 0) {
+        int viewRow = itemTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 món ăn trong bảng!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return -1;
         }
+        int row = itemTable.convertRowIndexToModel(viewRow);
         return (int) tableModel.getValueAt(row, 0);
     }
 

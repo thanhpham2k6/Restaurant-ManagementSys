@@ -153,6 +153,7 @@ public class ShiftPanel extends JPanel {
         shiftTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         shiftTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         shiftTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        shiftTable.setAutoCreateRowSorter(true);
 
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);
@@ -594,12 +595,13 @@ public class ShiftPanel extends JPanel {
     private void printCurrentZReport() {
         Shift cur = shiftController.getCurrentShift();
         if (cur == null) {
-            int row = shiftTable.getSelectedRow();
-            if (row < 0 && shiftTable.getRowCount() > 0) {
-                row = 0; // Tự động chọn ca gần nhất
+            int viewRow = shiftTable.getSelectedRow();
+            if (viewRow < 0 && shiftTable.getRowCount() > 0) {
+                viewRow = 0; // Tự động chọn ca gần nhất
                 shiftTable.setRowSelectionInterval(0, 0);
             }
-            if (row >= 0) {
+            if (viewRow >= 0) {
+                int row = shiftTable.convertRowIndexToModel(viewRow);
                 int id = (int) tableModel.getValueAt(row, 0);
                 cur = cachedAllShifts.stream().filter(s -> s.getId() == id).findFirst().orElse(null);
             }

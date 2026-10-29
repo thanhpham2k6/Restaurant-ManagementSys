@@ -1,0 +1,139 @@
+2026-10-28 17:32:54.743 [main] INFO  com.pos.Main - Hệ thống Restaurant POS Enterprise v3.0 đã khởi động thành công
+2026-10-28 17:32:59.634 [SwingWorker-pool-2-thread-1] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-28 17:33:00.137 [SwingWorker-pool-2-thread-1] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-28 17:33:00.299 [SwingWorker-pool-2-thread-1] INFO  com.pos.controller.AuthController - Đã đồng bộ mật khẩu mới cho tài khoản hệ thống 'admin'
+2026-10-28 17:33:00.299 [SwingWorker-pool-2-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: admin [MANAGER]
+2026-10-28 17:33:00.530 [AWT-EventQueue-0] ERROR com.pos.controller.KitchenController - getActiveItems error
+com.microsoft.sqlserver.jdbc.SQLServerException: Invalid column name 'sent_to_kitchen'.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDatabaseError(SQLServerException.java:259) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.getNextResult(SQLServerStatement.java:1695) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.doExecuteStatement(SQLServerStatement.java:920) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement$StmtExecCmd.doExecute(SQLServerStatement.java:814) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.TDSCommand.execute(IOBuffer.java:7675) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerConnection.executeCommand(SQLServerConnection.java:4137) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeCommand(SQLServerStatement.java:272) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeStatement(SQLServerStatement.java:246) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeQuery(SQLServerStatement.java:736) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.ProxyStatement.executeQuery(ProxyStatement.java:110) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyStatement.executeQuery(HikariProxyStatement.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.controller.KitchenController.getActiveItems(KitchenController.java:67) [classes/:?]
+	at com.pos.view.KitchenPanel.loadItems(KitchenPanel.java:126) [classes/:?]
+	at com.pos.view.KitchenPanel.initUI(KitchenPanel.java:120) [classes/:?]
+	at com.pos.view.KitchenPanel.<init>(KitchenPanel.java:30) [classes/:?]
+	at com.pos.view.MainDashboard.initUI(MainDashboard.java:73) [classes/:?]
+	at com.pos.view.MainDashboard.<init>(MainDashboard.java:28) [classes/:?]
+	at com.pos.view.LoginForm$3.lambda$done$0(LoginForm.java:161) [classes/:?]
+	at java.desktop/java.awt.event.InvocationEvent.dispatch(InvocationEvent.java:323) [?:?]
+	at java.desktop/java.awt.EventQueue.dispatchEventImpl(EventQueue.java:714) [?:?]
+	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:693) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90) [?:?]
+2026-10-28 17:33:00.587 [SwingWorker-pool-2-thread-8] ERROR com.pos.dao.ReservationDAO - findAll reservations error
+com.microsoft.sqlserver.jdbc.SQLServerException: The column name customer_id is not valid.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDriverError(SQLServerException.java:231) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.findColumn(SQLServerResultSet.java:748) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.getInt(SQLServerResultSet.java:2392) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyResultSet.getInt(HikariProxyResultSet.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.dao.ReservationDAO.mapRow(ReservationDAO.java:24) ~[classes/:?]
+	at com.pos.dao.ReservationDAO.findAll(ReservationDAO.java:54) [classes/:?]
+	at com.pos.controller.ReservationController.getAllReservations(ReservationController.java:27) [classes/:?]
+	at com.pos.view.TableReservationPanel$3.doInBackground(TableReservationPanel.java:469) [classes/:?]
+	at com.pos.view.TableReservationPanel$3.doInBackground(TableReservationPanel.java:467) [classes/:?]
+	at java.desktop/javax.swing.SwingWorker$1.call(SwingWorker.java:303) [?:?]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330) [?:?]
+	at java.desktop/javax.swing.SwingWorker.run(SwingWorker.java:340) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614) [?:?]
+	at java.base/java.lang.Thread.run(Thread.java:1516) [?:?]
+2026-10-28 17:33:10.544 [AWT-EventQueue-0] ERROR com.pos.controller.KitchenController - getActiveItems error
+com.microsoft.sqlserver.jdbc.SQLServerException: Invalid column name 'sent_to_kitchen'.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDatabaseError(SQLServerException.java:259) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.getNextResult(SQLServerStatement.java:1695) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.doExecuteStatement(SQLServerStatement.java:920) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement$StmtExecCmd.doExecute(SQLServerStatement.java:814) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.TDSCommand.execute(IOBuffer.java:7675) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerConnection.executeCommand(SQLServerConnection.java:4137) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeCommand(SQLServerStatement.java:272) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeStatement(SQLServerStatement.java:246) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeQuery(SQLServerStatement.java:736) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.ProxyStatement.executeQuery(ProxyStatement.java:110) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyStatement.executeQuery(HikariProxyStatement.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.controller.KitchenController.getActiveItems(KitchenController.java:67) [classes/:?]
+	at com.pos.view.KitchenPanel.loadItems(KitchenPanel.java:126) [classes/:?]
+	at java.desktop/java.awt.event.InvocationEvent.dispatch(InvocationEvent.java:323) [?:?]
+	at java.desktop/java.awt.EventQueue.dispatchEventImpl(EventQueue.java:714) [?:?]
+	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:693) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90) [?:?]
+2026-10-28 17:33:20.545 [AWT-EventQueue-0] ERROR com.pos.controller.KitchenController - getActiveItems error
+com.microsoft.sqlserver.jdbc.SQLServerException: Invalid column name 'sent_to_kitchen'.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDatabaseError(SQLServerException.java:259) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.getNextResult(SQLServerStatement.java:1695) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.doExecuteStatement(SQLServerStatement.java:920) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement$StmtExecCmd.doExecute(SQLServerStatement.java:814) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.TDSCommand.execute(IOBuffer.java:7675) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerConnection.executeCommand(SQLServerConnection.java:4137) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeCommand(SQLServerStatement.java:272) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeStatement(SQLServerStatement.java:246) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerStatement.executeQuery(SQLServerStatement.java:736) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.ProxyStatement.executeQuery(ProxyStatement.java:110) ~[HikariCP-5.1.0.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyStatement.executeQuery(HikariProxyStatement.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.controller.KitchenController.getActiveItems(KitchenController.java:67) [classes/:?]
+	at com.pos.view.KitchenPanel.loadItems(KitchenPanel.java:126) [classes/:?]
+	at java.desktop/java.awt.event.InvocationEvent.dispatch(InvocationEvent.java:323) [?:?]
+	at java.desktop/java.awt.EventQueue.dispatchEventImpl(EventQueue.java:714) [?:?]
+	at java.desktop/java.awt.EventQueue.dispatchEvent(EventQueue.java:693) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpOneEventForFilters(EventDispatchThread.java:203) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForFilter(EventDispatchThread.java:124) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEventsForHierarchy(EventDispatchThread.java:113) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:109) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.pumpEvents(EventDispatchThread.java:101) [?:?]
+	at java.desktop/java.awt.EventDispatchThread.run(EventDispatchThread.java:90) [?:?]
+2026-10-29 21:18:37.154 [main] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-29 21:18:43.766 [main] ERROR com.pos.utils.DatabaseConnection - Failed to initialize HikariCP pool to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;: Failed to initialize pool: The TCP/IP connection to the host localhost, port 1433 has failed. Error: "Permission denied: getsockopt. Verify the connection properties. Make sure that an instance of SQL Server is running on the host and accepting TCP/IP connections at the port. Make sure that TCP connections to the port are not blocked by a firewall.".
+2026-10-29 21:18:50.313 [main] ERROR com.pos.utils.DatabaseConnection - Failed to initialize HikariCP pool to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;: Failed to initialize pool: The TCP/IP connection to the host localhost, port 1433 has failed. Error: "Permission denied: getsockopt. Verify the connection properties. Make sure that an instance of SQL Server is running on the host and accepting TCP/IP connections at the port. Make sure that TCP connections to the port are not blocked by a firewall.".
+2026-10-29 21:18:50.313 [main] ERROR com.pos.dao.UserDAO - findAll users error
+java.sql.SQLException: Không thể kết nối CSDL tới máy chủ localhost:1433 (Tên CSDL: RestaurantManagementSys)
+	at com.pos.utils.DatabaseConnection.getConnection(DatabaseConnection.java:126) ~[restaurant-pos-1.0-SNAPSHOT-jar-with-dependencies.jar:?]
+	at com.pos.dao.UserDAO.findAll(UserDAO.java:42) [restaurant-pos-1.0-SNAPSHOT-jar-with-dependencies.jar:?]
+	at com.pos.VerifyPOS.main(VerifyPOS.java:18) [test-classes/:?]
+2026-10-29 21:20:47.895 [main] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-29 21:20:48.339 [main] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-29 21:20:48.420 [main] INFO  com.pos.controller.TableController - Bàn Bàn 01 đã mở, mã đơn #1 bởi nhân viên cashier1
+2026-10-29 21:20:48.562 [main] INFO  com.pos.controller.OrderController - Đơn hàng #1 đã gửi bếp
+2026-10-29 21:21:47.942 [main] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-29 21:21:48.347 [main] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-29 21:21:48.422 [main] INFO  com.pos.controller.TableController - Bàn Bàn 01 đã mở, mã đơn #2 bởi nhân viên cashier1
+2026-10-29 21:21:48.551 [main] INFO  com.pos.controller.OrderController - Đơn hàng #2 đã gửi bếp
+2026-10-29 21:23:06.157 [main] INFO  com.pos.Main - Hệ thống Restaurant POS Enterprise v3.0 đã khởi động thành công
+2026-10-29 21:23:10.973 [SwingWorker-pool-2-thread-1] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-29 21:23:11.365 [SwingWorker-pool-2-thread-1] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-29 21:23:11.455 [SwingWorker-pool-2-thread-1] WARN  com.pos.controller.AuthController - Đăng nhập thất bại: Sai mật khẩu cho tài khoản 'admin'
+2026-10-29 21:23:16.789 [SwingWorker-pool-2-thread-2] INFO  com.pos.controller.AuthController - Đã đồng bộ mật khẩu mới cho tài khoản hệ thống 'admin'
+2026-10-29 21:23:16.789 [SwingWorker-pool-2-thread-2] INFO  com.pos.controller.AuthController - Đăng nhập thành công: admin [MANAGER]
+2026-10-29 21:23:17.000 [SwingWorker-pool-2-thread-9] ERROR com.pos.dao.ReservationDAO - findAll reservations error
+com.microsoft.sqlserver.jdbc.SQLServerException: The column name customer_id is not valid.
+	at com.microsoft.sqlserver.jdbc.SQLServerException.makeFromDriverError(SQLServerException.java:231) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.findColumn(SQLServerResultSet.java:748) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.microsoft.sqlserver.jdbc.SQLServerResultSet.getInt(SQLServerResultSet.java:2392) ~[mssql-jdbc-12.4.2.jre11.jar:?]
+	at com.zaxxer.hikari.pool.HikariProxyResultSet.getInt(HikariProxyResultSet.java) ~[HikariCP-5.1.0.jar:?]
+	at com.pos.dao.ReservationDAO.mapRow(ReservationDAO.java:24) ~[classes/:?]
+	at com.pos.dao.ReservationDAO.findAll(ReservationDAO.java:54) [classes/:?]
+	at com.pos.controller.ReservationController.getAllReservations(ReservationController.java:27) [classes/:?]
+	at com.pos.view.TableReservationPanel$3.doInBackground(TableReservationPanel.java:470) [classes/:?]
+	at com.pos.view.TableReservationPanel$3.doInBackground(TableReservationPanel.java:468) [classes/:?]
+	at java.desktop/javax.swing.SwingWorker$1.call(SwingWorker.java:303) [?:?]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:330) [?:?]
+	at java.desktop/javax.swing.SwingWorker.run(SwingWorker.java:340) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090) [?:?]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614) [?:?]
+	at java.base/java.lang.Thread.run(Thread.java:1516) [?:?]
+2026-10-29 21:24:05.618 [AWT-EventQueue-0] INFO  com.pos.controller.TableController - Bàn Bàn 01 đã mở, mã đơn #3 bởi nhân viên admin

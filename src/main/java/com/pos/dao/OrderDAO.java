@@ -135,7 +135,11 @@ public class OrderDAO {
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return mapRow(rs);
+                if (rs.next()) {
+                    Order o = mapRow(rs);
+                    o.setDetails(findDetailsByOrder(o.getId()));
+                    return o;
+                }
             }
         } catch (SQLException e) { log.error("findById order error", e); }
         return null;
@@ -147,7 +151,11 @@ public class OrderDAO {
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, tableId);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return mapRow(rs);
+                if (rs.next()) {
+                    Order o = mapRow(rs);
+                    o.setDetails(findDetailsByOrder(o.getId()));
+                    return o;
+                }
             }
         } catch (SQLException e) { log.error("findOpenByTable error", e); }
         return null;

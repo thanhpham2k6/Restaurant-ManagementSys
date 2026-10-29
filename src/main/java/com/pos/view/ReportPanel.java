@@ -175,6 +175,7 @@ public class ReportPanel extends JPanel implements OrderObserver {
         orderTable.getTableHeader().setForeground(new Color(51, 65, 85));
         orderTable.setSelectionBackground(new Color(237, 242, 247));
         orderTable.setSelectionForeground(new Color(15, 23, 42));
+        orderTable.setAutoCreateRowSorter(true);
 
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
@@ -222,6 +223,7 @@ public class ReportPanel extends JPanel implements OrderObserver {
         invoiceFileTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         invoiceFileTable.getTableHeader().setBackground(new Color(241, 245, 249));
         invoiceFileTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        invoiceFileTable.setAutoCreateRowSorter(true);
 
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);
@@ -315,9 +317,13 @@ public class ReportPanel extends JPanel implements OrderObserver {
     }
 
     private void openSelectedInvoicePdf() {
-        int row = invoiceFileTable.getSelectedRow();
-        if (row < 0 || currentInvoiceFiles == null || row >= currentInvoiceFiles.size()) {
+        int viewRow = invoiceFileTable.getSelectedRow();
+        if (viewRow < 0 || currentInvoiceFiles == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 tệp hóa đơn trong danh sách!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = invoiceFileTable.convertRowIndexToModel(viewRow);
+        if (row < 0 || row >= currentInvoiceFiles.size()) {
             return;
         }
         File file = currentInvoiceFiles.get(row);
@@ -347,9 +353,13 @@ public class ReportPanel extends JPanel implements OrderObserver {
     }
 
     private void deleteSelectedInvoiceFile() {
-        int row = invoiceFileTable.getSelectedRow();
-        if (row < 0 || currentInvoiceFiles == null || row >= currentInvoiceFiles.size()) {
+        int viewRow = invoiceFileTable.getSelectedRow();
+        if (viewRow < 0 || currentInvoiceFiles == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 tệp hóa đơn cần xóa!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = invoiceFileTable.convertRowIndexToModel(viewRow);
+        if (row < 0 || row >= currentInvoiceFiles.size()) {
             return;
         }
         File file = currentInvoiceFiles.get(row);
@@ -412,9 +422,13 @@ public class ReportPanel extends JPanel implements OrderObserver {
     }
 
     private void exportSelectedOrderPdf() {
-        int row = orderTable.getSelectedRow();
-        if (row < 0 || currentLoadedOrders == null || row >= currentLoadedOrders.size()) {
+        int viewRow = orderTable.getSelectedRow();
+        if (viewRow < 0 || currentLoadedOrders == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 đơn hàng trong danh sách!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int row = orderTable.convertRowIndexToModel(viewRow);
+        if (row < 0 || row >= currentLoadedOrders.size()) {
             return;
         }
 

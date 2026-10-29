@@ -119,6 +119,7 @@ public class CustomerPanel extends JPanel {
         custTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         custTable.getTableHeader().setBackground(new Color(238, 242, 246));
         custTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        custTable.setAutoCreateRowSorter(true);
 
         JScrollPane scroll = new JScrollPane(custTable);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(224, 224, 224)));
@@ -197,9 +198,11 @@ public class CustomerPanel extends JPanel {
     }
 
     private Customer getSelected() {
-        int r = custTable.getSelectedRow();
-        if (r >= 0 && currentList != null && r < currentList.size()) {
-            return currentList.get(r);
+        int viewRow = custTable.getSelectedRow();
+        if (viewRow >= 0 && currentList != null) {
+            int r = custTable.convertRowIndexToModel(viewRow);
+            int custId = (int) tableModel.getValueAt(r, 0);
+            return currentList.stream().filter(c -> c.getId() == custId).findFirst().orElse(null);
         }
         return null;
     }

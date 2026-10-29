@@ -79,6 +79,7 @@ public class VoucherPanel extends JPanel {
         voucherTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         voucherTable.getTableHeader().setBackground(new Color(238, 242, 246));
         voucherTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        voucherTable.setAutoCreateRowSorter(true);
 
         JScrollPane scroll = new JScrollPane(voucherTable);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(224, 224, 224)));
@@ -137,8 +138,12 @@ public class VoucherPanel extends JPanel {
     }
 
     private Voucher getSelected() {
-        int r = voucherTable.getSelectedRow();
-        if (r >= 0 && currentList != null && r < currentList.size()) {
+        int viewRow = voucherTable.getSelectedRow();
+        if (viewRow < 0 || currentList == null) {
+            return null;
+        }
+        int r = voucherTable.convertRowIndexToModel(viewRow);
+        if (r >= 0 && r < currentList.size()) {
             return currentList.get(r);
         }
         return null;

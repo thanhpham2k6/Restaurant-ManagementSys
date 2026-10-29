@@ -195,6 +195,7 @@ public class DashboardPanel extends JPanel implements OrderObserver {
         table.getTableHeader().setForeground(new Color(71, 85, 105));
         table.setSelectionBackground(new Color(237, 242, 247));
         table.setSelectionForeground(new Color(15, 23, 42));
+        table.setAutoCreateRowSorter(true);
 
         DefaultTableCellRenderer center = new DefaultTableCellRenderer();
         center.setHorizontalAlignment(SwingConstants.CENTER);

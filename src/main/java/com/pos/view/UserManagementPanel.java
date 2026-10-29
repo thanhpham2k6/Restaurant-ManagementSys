@@ -118,6 +118,7 @@ public class UserManagementPanel extends JPanel {
         userTable.setSelectionBackground(new Color(237, 242, 247));
         userTable.setSelectionForeground(new Color(15, 23, 42));
         userTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        userTable.setAutoCreateRowSorter(true);
 
         userTable.getColumnModel().getColumn(0).setPreferredWidth(50);
         userTable.getColumnModel().getColumn(1).setPreferredWidth(120);
@@ -164,9 +165,13 @@ public class UserManagementPanel extends JPanel {
     }
 
     private User getSelectedUser() {
-        int row = userTable.getSelectedRow();
-        if (row < 0 || loadedUsers == null || row >= loadedUsers.size()) {
+        int viewRow = userTable.getSelectedRow();
+        if (viewRow < 0 || loadedUsers == null) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn 1 tài khoản trong danh sách!", "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
+        int row = userTable.convertRowIndexToModel(viewRow);
+        if (row < 0 || row >= loadedUsers.size()) {
             return null;
         }
         return loadedUsers.get(row);

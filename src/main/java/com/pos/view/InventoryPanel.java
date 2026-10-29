@@ -120,6 +120,7 @@ public class InventoryPanel extends JPanel implements StockObserver {
         itemTable.setRowHeight(30);
         itemTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         itemTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        itemTable.setAutoCreateRowSorter(true);
         itemTable.getColumnModel().getColumn(0).setPreferredWidth(50);
         itemTable.getColumnModel().getColumn(0).setMaxWidth(60);
         itemTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -164,6 +165,7 @@ public class InventoryPanel extends JPanel implements StockObserver {
         movementTable.setRowHeight(30);
         movementTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         movementTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        movementTable.setAutoCreateRowSorter(true);
 
         panel.add(new JScrollPane(movementTable), BorderLayout.CENTER);
         return panel;
@@ -208,6 +210,7 @@ public class InventoryPanel extends JPanel implements StockObserver {
         auditTable.setRowHeight(30);
         auditTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         auditTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        auditTable.setAutoCreateRowSorter(true);
         auditTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         panel.add(new JScrollPane(auditTable), BorderLayout.CENTER);
@@ -247,6 +250,7 @@ public class InventoryPanel extends JPanel implements StockObserver {
         supplierTable.setRowHeight(30);
         supplierTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         supplierTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        supplierTable.setAutoCreateRowSorter(true);
         supplierTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         panel.add(new JScrollPane(supplierTable), BorderLayout.CENTER);
@@ -421,11 +425,12 @@ public class InventoryPanel extends JPanel implements StockObserver {
     }
 
     private void showEditItemDialog() {
-        int r = itemTable.getSelectedRow();
-        if (r < 0) {
+        int viewRow = itemTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một dòng mặt hàng cần sửa.");
             return;
         }
+        int r = itemTable.convertRowIndexToModel(viewRow);
         int id = (int) itemModel.getValueAt(r, 1);
         InventoryItem item = inventoryController.getItemById(id);
         if (item == null) {
@@ -473,8 +478,9 @@ public class InventoryPanel extends JPanel implements StockObserver {
             }
         }
         if (idsToDelete.isEmpty()) {
-            int r = itemTable.getSelectedRow();
-            if (r >= 0) {
+            int viewRow = itemTable.getSelectedRow();
+            if (viewRow >= 0) {
+                int r = itemTable.convertRowIndexToModel(viewRow);
                 idsToDelete.add((int) itemModel.getValueAt(r, 1));
                 namesToDelete.add((String) itemModel.getValueAt(r, 2));
             }
@@ -692,12 +698,15 @@ public class InventoryPanel extends JPanel implements StockObserver {
 
     // ==================== IN/XEM CHỨNG TỪ GIẤY TỜ NHẬP XUẤT ====================
     private void showMovementSlipDialog() {
-        int r = movementTable.getSelectedRow();
-        if (r < 0 || movementsList == null || r >= movementsList.size()) {
+        int viewRow = movementTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn một dòng lịch sử nhập/xuất kho để in phiếu!", "Thông báo", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        showMovementSlipDialog(movementsList.get(r));
+        int r = movementTable.convertRowIndexToModel(viewRow);
+        int movId = (int) movementModel.getValueAt(r, 0);
+        StockMovement sm = movementsList != null ? movementsList.stream().filter(m -> m.getId() == movId).findFirst().orElse(null) : null;
+        if (sm != null) showMovementSlipDialog(sm);
     }
 
     private void showMovementSlipDialog(StockMovement sm) {
@@ -797,6 +806,7 @@ public class InventoryPanel extends JPanel implements StockObserver {
 
         JTable table = new JTable(model);
         table.setRowHeight(28);
+        table.setAutoCreateRowSorter(true);
 
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setPreferredSize(new Dimension(750, 400));
@@ -806,6 +816,9 @@ public class InventoryPanel extends JPanel implements StockObserver {
         int res = JOptionPane.showConfirmDialog(this, panel, "Phiếu Kiểm Kê Kho Thực Tế", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (res == JOptionPane.OK_OPTION) {
             try {
+                if (table.isEditing()) {
+                    table.getCellEditor().stopCellEditing();
+                }
                 List<InventoryAuditDetail> details = new ArrayList<>();
                 for (int r = 0; r < model.getRowCount(); r++) {
                     int itemId = (int) model.getValueAt(r, 0);
@@ -832,11 +845,12 @@ public class InventoryPanel extends JPanel implements StockObserver {
     }
 
     private void showAuditDetailsDialog() {
-        int r = auditTable.getSelectedRow();
-        if (r < 0) {
+        int viewRow = auditTable.getSelectedRow();
+        if (viewRow < 0) {
             JOptionPane.showMessageDialog(this, "Vui lòng chọn đợt kiểm kho cần xem.");
             return;
         }
+        int r = auditTable.convertRowIndexToModel(viewRow);
         int auditId = (int) auditModel.getValueAt(r, 0);
         List<InventoryAuditDetail> details = inventoryController.getAuditDetails(auditId);
 
@@ -859,6 +873,7 @@ public class InventoryPanel extends JPanel implements StockObserver {
 
         JTable table = new JTable(model);
         table.setRowHeight(28);
+        table.setAutoCreateRowSorter(true);
 
         JScrollPane scroll = new JScrollPane(table);
         scroll.setPreferredSize(new Dimension(650, 320));
@@ -899,9 +914,12 @@ public class InventoryPanel extends JPanel implements StockObserver {
     }
 
     private void showEditSupplierDialog() {
-        int r = supplierTable.getSelectedRow();
-        if (r < 0 || suppliersList == null || r >= suppliersList.size()) return;
-        Supplier s = suppliersList.get(r);
+        int viewRow = supplierTable.getSelectedRow();
+        if (viewRow < 0) return;
+        int r = supplierTable.convertRowIndexToModel(viewRow);
+        int supId = (int) supplierModel.getValueAt(r, 0);
+        Supplier s = suppliersList != null ? suppliersList.stream().filter(x -> x.getId() == supId).findFirst().orElse(null) : null;
+        if (s == null) return;
 
         JTextField txtName = new JTextField(s.getName());
         JTextField txtContact = new JTextField(s.getContactPerson() != null ? s.getContactPerson() : "");
@@ -933,9 +951,12 @@ public class InventoryPanel extends JPanel implements StockObserver {
     }
 
     private void deleteSelectedSupplier() {
-        int r = supplierTable.getSelectedRow();
-        if (r < 0 || suppliersList == null || r >= suppliersList.size()) return;
-        Supplier s = suppliersList.get(r);
+        int viewRow = supplierTable.getSelectedRow();
+        if (viewRow < 0) return;
+        int r = supplierTable.convertRowIndexToModel(viewRow);
+        int supId = (int) supplierModel.getValueAt(r, 0);
+        Supplier s = suppliersList != null ? suppliersList.stream().filter(x -> x.getId() == supId).findFirst().orElse(null) : null;
+        if (s == null) return;
         int confirm = JOptionPane.showConfirmDialog(this, "Bạn có chắc muốn xóa NCC " + s.getName() + "?", "Xác nhận", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
             inventoryController.deleteSupplier(s.getId());

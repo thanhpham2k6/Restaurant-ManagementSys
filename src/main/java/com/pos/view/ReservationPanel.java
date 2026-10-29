@@ -109,6 +109,7 @@ public class ReservationPanel extends JPanel {
         resTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         resTable.getTableHeader().setBackground(new Color(238, 242, 246));
         resTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        resTable.setAutoCreateRowSorter(true);
 
         JScrollPane scroll = new JScrollPane(resTable);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(224, 224, 224)));
@@ -160,8 +161,12 @@ public class ReservationPanel extends JPanel {
     }
 
     private Reservation getSelectedReservation() {
-        int row = resTable.getSelectedRow();
-        if (row >= 0 && currentList != null && row < currentList.size()) {
+        int viewRow = resTable.getSelectedRow();
+        if (viewRow < 0 || currentList == null) {
+            return null;
+        }
+        int row = resTable.convertRowIndexToModel(viewRow);
+        if (row >= 0 && row < currentList.size()) {
             return currentList.get(row);
         }
         return null;

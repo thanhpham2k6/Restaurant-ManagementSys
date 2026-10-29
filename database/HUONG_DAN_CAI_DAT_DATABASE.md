@@ -32,7 +32,7 @@ db.password=12345
 
 ### Lựa chọn 1C: Chạy bằng dòng lệnh (CMD / PowerShell / Terminal)
 ```bash
-sqlcmd -S localhost -U sa -P 12345 -C -i "database/setup_database.sql"
+sqlcmd -S localhost -U sa -P 12345 -C -f 65001 -i "database/setup_database.sql"
 ```
 
 ---

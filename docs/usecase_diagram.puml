@@ -1,0 +1,110 @@
+@startuml
+title BIỂU ĐỒ USE CASE TỔNG QUÁT - HỆ THỐNG QUẢN LÝ NHÀ HÀNG POS
+left to right direction
+
+skinparam defaultFontName "Segoe UI"
+skinparam monochrome false
+skinparam packageStyle rectangle
+skinparam shadowing true
+
+skinparam actor {
+    BorderColor #1E293B
+    BackgroundColor #FFFFFF
+}
+
+skinparam usecase {
+    BackgroundColor #EFF6FF
+    BorderColor #2563EB
+    ArrowColor #64748B
+    FontSize 12
+}
+
+' ==================== ĐỊNH NGHĨA CÁC TÁC NHÂN (STICK FIGURES) ====================
+:Quản lý: as Manager
+:Thu ngân: as Cashier
+:Nhà bếp: as Kitchen
+
+' ==================== RANH GIỚI HỆ THỐNG ====================
+rectangle "HỆ THỐNG QUẢN LÝ NHÀ HÀNG (RESTAURANT POS ENTERPRISE)" {
+
+    ' Nhóm Hệ thống
+    package "Hệ thống & Xác thực" {
+        (Đăng nhập hệ thống & Phân quyền) as UC_Login
+        (Đổi mật khẩu & Đăng xuất) as UC_Logout
+    }
+
+    ' Nhóm Bán hàng & Bàn ăn
+    package "Phân hệ Bán hàng & Bàn ăn (POS)" {
+        (Quản lý Sơ đồ bàn, Chuyển/Gộp bàn) as UC_Table
+        (Tiếp nhận Đặt bàn trước & Cọc) as UC_Reserve
+        (Gọi món tại bàn & Mang về) as UC_Order
+        (Thanh toán & Kiểm soát an toàn 2 tầng) as UC_Payment
+        (Gửi yêu cầu chế biến sang Bếp) as UC_SendKitchen #FEF3C7
+        (Thêm thông tin khách mới từ SĐT) as UC_AddCustomer #ECFDF5
+        (Áp dụng Voucher & Tích điểm) as UC_Voucher #ECFDF5
+        (In hóa đơn nhiệt & Xuất PDF 80mm) as UC_PrintBill #FEF3C7
+    }
+
+    ' Nhóm Bếp KDS
+    package "Phân hệ Điều phối Bếp (KDS)" {
+        (Điều phối món 3 bước\nNhận - Nấu - Xong) as UC_Kitchen #FEE2E2
+        (Từ chối món khi hết nguyên liệu) as UC_Reject #ECFDF5
+    }
+
+    ' Nhóm Ca làm việc & Sổ quỹ
+    package "Phân hệ Ca làm & Sổ quỹ" {
+        (Mở ca & Đóng ca đối soát két tiền) as UC_Shift
+        (Chấm công Check-in / Check-out) as UC_Attendance
+        (Quản lý Sổ quỹ Thu - Chi tiền mặt) as UC_Cashbook #F3E8FF
+    }
+
+    ' Nhóm Quản trị (Dành riêng cho Quản lý)
+    package "Phân hệ Quản trị & Thống kê (Manager)" #F8FAFC {
+        (Xem Dashboard & Biểu đồ KPI) as UC_Dashboard #F3E8FF
+        (Quản lý Thực đơn & Hình ảnh món) as UC_Menu #F3E8FF
+        (Quản lý Kho & Kiểm kê Stocktake) as UC_Inventory #F3E8FF
+        (Quản lý Khách hàng & Phân hạng thẻ) as UC_Customer #F3E8FF
+        (Thiết lập Chương trình Voucher) as UC_VoucherMgmt #F3E8FF
+        (Báo cáo Doanh thu & Xu hướng bán) as UC_Report #F3E8FF
+        (Quản trị Tài khoản & Phân quyền) as UC_UserMgmt #F3E8FF
+    }
+}
+
+' ==================== MỐI QUAN HỆ GIỮA ACTOR VÀ USE CASE ====================
+' Dùng chung
+Manager -- UC_Login
+Cashier -- UC_Login
+Kitchen -- UC_Login
+Cashier -- UC_Attendance
+Kitchen -- UC_Attendance
+
+' Thu ngân (Cashier)
+Cashier -- UC_Table
+Cashier -- UC_Reserve
+Cashier -- UC_Order
+Cashier -- UC_Payment
+Cashier -- UC_Shift
+
+' Nhà bếp (Kitchen)
+Kitchen -- UC_Kitchen
+
+' Quản lý (Manager - Toàn quyền)
+Manager -- UC_Dashboard
+Manager -- UC_Menu
+Manager -- UC_Inventory
+Manager -- UC_Customer
+Manager -- UC_VoucherMgmt
+Manager -- UC_Cashbook
+Manager -- UC_Report
+Manager -- UC_UserMgmt
+Manager -- UC_Order
+Manager -- UC_Kitchen
+
+' ==================== QUAN HỆ INCLUDE VÀ EXTEND ====================
+UC_Order .> UC_SendKitchen : <<include>>
+UC_Payment .> UC_PrintBill : <<include>>
+UC_AddCustomer .> UC_Order : <<extend>>
+UC_Voucher .> UC_Payment : <<extend>>
+UC_Reject .> UC_Kitchen : <<extend>>
+
+@enduml

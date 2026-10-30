@@ -3007,3 +3007,14 @@ java.sql.SQLException: Không thể kết nối CSDL tới máy chủ localhost:
 2026-10-30 22:32:24.359 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: admin [MANAGER]
 2026-10-30 22:32:24.374 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Fixed 20 inventory items with font issues
 2026-10-30 22:32:24.379 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Database font encoding successfully repaired: 25 records updated to clean Vietnamese.
+2026-10-31 05:48:15.712 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Checking database for font encoding (mojibake) issues...
+2026-10-31 05:48:15.710 [main] INFO  com.pos.Main - Hệ thống Restaurant POS Enterprise v3.0 đã khởi động thành công
+2026-10-31 05:48:15.714 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseConnection - Loaded config from external db.properties
+2026-10-31 05:48:16.243 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseConnection - HikariCP pool initialized successfully to jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;
+2026-10-31 05:48:16.298 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Fixed 20 inventory items with font issues
+2026-10-31 05:48:16.329 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Database font encoding successfully repaired: 52 records updated to clean Vietnamese.
+2026-10-31 05:48:41.320 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đã đồng bộ mật khẩu mới cho tài khoản hệ thống 'admin'
+2026-10-31 05:48:41.320 [SwingWorker-pool-3-thread-1] INFO  com.pos.controller.AuthController - Đăng nhập thành công: admin [MANAGER]
+2026-10-31 05:48:41.321 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Checking database for font encoding (mojibake) issues...
+2026-10-31 05:48:41.333 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Fixed 20 inventory items with font issues
+2026-10-31 05:48:41.342 [DatabaseEncodingFixerThread] INFO  com.pos.utils.DatabaseEncodingFixer - Database font encoding successfully repaired: 25 records updated to clean Vietnamese.

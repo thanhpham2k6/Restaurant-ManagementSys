@@ -1,0 +1,222 @@
+@startuml
+!theme plain
+skinparam defaultFontName "Segoe UI"
+skinparam linetype ortho
+skinparam roundcorner 5
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+title SƠ ĐỒ THỰC THỂ QUAN HỆ (ERD) - HỆ THỐNG QUẢN LÝ NHÀ HÀNG
+
+entity "users" as users {
+  * id : INT <<PK>>
+  --
+  * username : NVARCHAR(50)
+  * password_hash : NVARCHAR(255)
+  * full_name : NVARCHAR(100)
+  * role : NVARCHAR(20)
+  * is_active : BIT
+  * created_at : DATETIME2
+}
+
+entity "dining_tables" as dining_tables {
+  * id : INT <<PK>>
+  --
+  * name : NVARCHAR(50)
+  * capacity : INT
+  * status : NVARCHAR(20)
+  * version : INT
+  qr_token : NVARCHAR(100)
+}
+
+entity "categories" as categories {
+  * id : INT <<PK>>
+  --
+  * name : NVARCHAR(100)
+  * type : NVARCHAR(20)
+}
+
+entity "menu_items" as menu_items {
+  * id : INT <<PK>>
+  --
+  * category_id : INT <<FK>>
+  * name : NVARCHAR(100)
+  * price : DECIMAL(15,2)
+  * status : NVARCHAR(20)
+  image_url : NVARCHAR(255)
+}
+
+entity "orders" as orders {
+  * id : INT <<PK>>
+  --
+  table_id : INT <<FK>>
+  customer_id : INT <<FK>>
+  user_id : INT <<FK>>
+  voucher_id : INT <<FK>>
+  shift_id : INT <<FK>>
+  * order_type : NVARCHAR(20)
+  * status : NVARCHAR(20)
+  * subtotal : DECIMAL(15,2)
+  discount_amount : DECIMAL(15,2)
+  * total_amount : DECIMAL(15,2)
+  payment_method : NVARCHAR(20)
+  created_at : DATETIME2
+}
+
+entity "order_details" as order_details {
+  * id : INT <<PK>>
+  --
+  * order_id : INT <<FK>>
+  * menu_item_id : INT <<FK>>
+  * quantity : INT
+  * price : DECIMAL(15,2)
+  * sent_to_kitchen : BIT
+  * status : NVARCHAR(20)
+  note : NVARCHAR(255)
+}
+
+entity "customers" as customers {
+  * id : INT <<PK>>
+  --
+  * name : NVARCHAR(100)
+  * phone : NVARCHAR(20)
+  email : NVARCHAR(100)
+  address : NVARCHAR(255)
+  * loyalty_points : INT
+  * membership_tier : NVARCHAR(20)
+}
+
+entity "vouchers" as vouchers {
+  * id : INT <<PK>>
+  --
+  * code : NVARCHAR(50)
+  * discount_type : NVARCHAR(20)
+  * discount_value : DECIMAL(15,2)
+  * min_order_amount : DECIMAL(15,2)
+  * max_uses : INT
+  * used_count : INT
+  * is_active : BIT
+}
+
+entity "reservations" as reservations {
+  * id : INT <<PK>>
+  --
+  * table_id : INT <<FK>>
+  customer_id : INT <<FK>>
+  * customer_name : NVARCHAR(100)
+  * customer_phone : NVARCHAR(20)
+  * party_size : INT
+  * reservation_time : DATETIME2
+  * deposit_amount : DECIMAL(15,2)
+  * status : NVARCHAR(15)
+  * channel : NVARCHAR(30)
+}
+
+entity "inventory_items" as inventory_items {
+  * id : INT <<PK>>
+  --
+  * name : NVARCHAR(100)
+  * unit : NVARCHAR(20)
+  * current_stock : DECIMAL(12,3)
+  * min_stock : DECIMAL(12,3)
+  * cost_price : DECIMAL(15,2)
+  supplier_id : INT <<FK>>
+}
+
+entity "suppliers" as suppliers {
+  * id : INT <<PK>>
+  --
+  * name : NVARCHAR(150)
+  * phone : NVARCHAR(20)
+  address : NVARCHAR(255)
+  email : NVARCHAR(100)
+}
+
+entity "stock_movements" as stock_movements {
+  * id : INT <<PK>>
+  --
+  * item_id : INT <<FK>>
+  * user_id : INT <<FK>>
+  * movement_type : NVARCHAR(20)
+  * quantity : DECIMAL(12,3)
+  * unit_price : DECIMAL(15,2)
+  created_at : DATETIME2
+}
+
+entity "inventory_audits" as inventory_audits {
+  * id : INT <<PK>>
+  --
+  * user_id : INT <<FK>>
+  * audit_date : DATETIME2
+  status : NVARCHAR(20)
+  note : NVARCHAR(255)
+}
+
+entity "inventory_audit_details" as inventory_audit_details {
+  * id : INT <<PK>>
+  --
+  * audit_id : INT <<FK>>
+  * item_id : INT <<FK>>
+  * system_stock : DECIMAL(12,3)
+  * actual_stock : DECIMAL(12,3)
+  * difference : DECIMAL(12,3)
+}
+
+entity "shifts" as shifts {
+  * id : INT <<PK>>
+  --
+  * user_id : INT <<FK>>
+  * start_time : DATETIME2
+  end_time : DATETIME2
+  * initial_cash : DECIMAL(15,2)
+  actual_cash : DECIMAL(15,2)
+  difference_amount : DECIMAL(15,2)
+  * status : NVARCHAR(20)
+}
+
+entity "employee_attendances" as employee_attendances {
+  * id : INT <<PK>>
+  --
+  * user_id : INT <<FK>>
+  * shift_date : DATE
+  * shift_type : NVARCHAR(20)
+  check_in : DATETIME2
+  check_out : DATETIME2
+  status : NVARCHAR(20)
+}
+
+entity "cash_transactions" as cash_transactions {
+  * id : INT <<PK>>
+  --
+  * user_id : INT <<FK>>
+  shift_id : INT <<FK>>
+  * type : NVARCHAR(20)
+  * amount : DECIMAL(15,2)
+  * category : NVARCHAR(50)
+  note : NVARCHAR(255)
+  created_at : DATETIME2
+}
+
+' Relations
+categories ||..o{ menu_items : "contains"
+menu_items ||..o{ order_details : "included in"
+orders ||..|{ order_details : "has"
+dining_tables ||..o{ orders : "serves"
+dining_tables ||..o{ reservations : "reserved for"
+customers ||..o{ reservations : "books"
+customers ||..o{ orders : "places"
+vouchers ||..o{ orders : "applies"
+shifts ||..o{ orders : "records"
+users ||..o{ orders : "creates"
+users ||..o{ shifts : "operates"
+users ||..o{ employee_attendances : "attends"
+users ||..o{ cash_transactions : "performs"
+users ||..o{ stock_movements : "logs"
+users ||..o{ inventory_audits : "conducts"
+suppliers ||..o{ inventory_items : "supplies"
+inventory_items ||..o{ stock_movements : "tracks"
+inventory_items ||..o{ inventory_audit_details : "audited in"
+inventory_audits ||..|{ inventory_audit_details : "contains"
+shifts ||..o{ cash_transactions : "associates"
+
+@enduml

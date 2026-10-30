@@ -1,0 +1,301 @@
+import os
+
+svg_content = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1450 1020" width="1450" height="1020">
+  <defs>
+    <style>
+      .title { font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: bold; fill: #1e293b; }
+      .tbl-header { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: bold; fill: #ffffff; }
+      .col-pk { font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold; fill: #b91c1c; }
+      .col-fk { font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold; fill: #2563eb; }
+      .col-name { font-family: 'Consolas', monospace; font-size: 11px; fill: #334155; }
+      .col-type { font-family: 'Consolas', monospace; font-size: 10px; fill: #64748b; font-style: italic; }
+      .group-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: bold; fill: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
+      .rel-line { stroke: #94a3b8; stroke-width: 1.5; fill: none; }
+      .rel-strong { stroke: #3b82f6; stroke-width: 1.8; fill: none; }
+    </style>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="#f8fafc" />
+
+  <!-- Title -->
+  <rect x="25" y="15" width="1400" height="42" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="725" y="42" text-anchor="middle" class="title">SƠ ĐỒ THỰC THỂ QUAN HỆ (ERD) - CƠ SỞ DỮ LIỆU RESTAURANT MANAGEMENT SYSTEM (17 BẢNG 3NF)</text>
+
+  <!-- ==================== REGION 1: PHỤC VỤ & BÁN HÀNG ==================== -->
+  <rect x="25" y="75" width="680" height="520" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="45" y="100" class="group-label">PHÂN HỆ 1: THỰC ĐƠN, BÀN ĂN &amp; ĐƠN HÀNG (POS)</text>
+
+  <!-- Table: categories -->
+  <g transform="translate(45, 120)" filter="url(#shadow)">
+    <rect width="190" height="24" rx="4" fill="#0284c7" />
+    <rect y="24" width="190" height="60" fill="#ffffff" stroke="#0284c7" stroke-width="1" />
+    <text x="95" y="17" text-anchor="middle" class="tbl-header">categories (Danh mục)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">name : NVARCHAR(100)</text>
+    <text x="10" y="74" class="col-name">type : NVARCHAR(20)</text>
+  </g>
+
+  <!-- Table: menu_items -->
+  <g transform="translate(265, 120)" filter="url(#shadow)">
+    <rect width="200" height="24" rx="4" fill="#0284c7" />
+    <rect y="24" width="200" height="95" fill="#ffffff" stroke="#0284c7" stroke-width="1" />
+    <text x="100" y="17" text-anchor="middle" class="tbl-header">menu_items (Món ăn)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK category_id : INT</text>
+    <text x="10" y="74" class="col-name">name : NVARCHAR(100)</text>
+    <text x="10" y="90" class="col-name">price : DECIMAL(15,2)</text>
+    <text x="10" y="106" class="col-name">status : NVARCHAR(20)</text>
+  </g>
+
+  <!-- Table: dining_tables -->
+  <g transform="translate(495, 120)" filter="url(#shadow)">
+    <rect width="190" height="24" rx="4" fill="#0284c7" />
+    <rect y="24" width="190" height="95" fill="#ffffff" stroke="#0284c7" stroke-width="1" />
+    <text x="95" y="17" text-anchor="middle" class="tbl-header">dining_tables (Bàn ăn)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">name : NVARCHAR(50)</text>
+    <text x="10" y="74" class="col-name">capacity : INT</text>
+    <text x="10" y="90" class="col-name">status : NVARCHAR(20)</text>
+    <text x="10" y="106" class="col-name">version : INT</text>
+  </g>
+
+  <!-- Table: reservations -->
+  <g transform="translate(495, 255)" filter="url(#shadow)">
+    <rect width="190" height="24" rx="4" fill="#0284c7" />
+    <rect y="24" width="190" height="135" fill="#ffffff" stroke="#0284c7" stroke-width="1" />
+    <text x="95" y="17" text-anchor="middle" class="tbl-header">reservations (Đặt bàn)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK table_id : INT</text>
+    <text x="10" y="74" class="col-fk">FK customer_id : INT</text>
+    <text x="10" y="90" class="col-name">customer_name : NVARCHAR</text>
+    <text x="10" y="106" class="col-name">customer_phone : NVARCHAR</text>
+    <text x="10" y="122" class="col-name">party_size : INT</text>
+    <text x="10" y="138" class="col-name">deposit_amount : DECIMAL</text>
+    <text x="10" y="154" class="col-name">status : NVARCHAR(15)</text>
+  </g>
+
+  <!-- Table: orders -->
+  <g transform="translate(265, 255)" filter="url(#shadow)">
+    <rect width="200" height="24" rx="4" fill="#1d4ed8" />
+    <rect y="24" width="200" height="185" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.5" />
+    <text x="100" y="17" text-anchor="middle" class="tbl-header">orders (Đơn hàng / Bill)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK table_id : INT</text>
+    <text x="10" y="74" class="col-fk">FK customer_id : INT</text>
+    <text x="10" y="90" class="col-fk">FK user_id : INT</text>
+    <text x="10" y="106" class="col-fk">FK voucher_id : INT</text>
+    <text x="10" y="122" class="col-fk">FK shift_id : INT</text>
+    <text x="10" y="138" class="col-name">order_type : NVARCHAR(20)</text>
+    <text x="10" y="154" class="col-name">status : NVARCHAR(20)</text>
+    <text x="10" y="170" class="col-name">subtotal : DECIMAL(15,2)</text>
+    <text x="10" y="186" class="col-name">discount_amount : DECIMAL</text>
+    <text x="10" y="202" class="col-name">total_amount : DECIMAL</text>
+  </g>
+
+  <!-- Table: order_details -->
+  <g transform="translate(45, 255)" filter="url(#shadow)">
+    <rect width="190" height="24" rx="4" fill="#1d4ed8" />
+    <rect y="24" width="190" height="150" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.5" />
+    <text x="95" y="17" text-anchor="middle" class="tbl-header">order_details (Chi tiết)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK order_id : INT</text>
+    <text x="10" y="74" class="col-fk">FK menu_item_id : INT</text>
+    <text x="10" y="90" class="col-name">quantity : INT</text>
+    <text x="10" y="106" class="col-name">price : DECIMAL(15,2)</text>
+    <text x="10" y="122" class="col-name">sent_to_kitchen : BIT</text>
+    <text x="10" y="138" class="col-name">status : NVARCHAR(20)</text>
+    <text x="10" y="154" class="col-name">note : NVARCHAR(255)</text>
+  </g>
+
+  <!-- ==================== REGION 2: KHÁCH HÀNG & VOUCHER ==================== -->
+  <rect x="25" y="615" width="680" height="185" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="45" y="640" class="group-label">PHÂN HỆ 2: KHÁCH HÀNG &amp; VOUCHER KHUYẾN MÃI</text>
+
+  <!-- Table: customers -->
+  <g transform="translate(45, 660)" filter="url(#shadow)">
+    <rect width="310" height="24" rx="4" fill="#059669" />
+    <rect y="24" width="310" height="115" fill="#ffffff" stroke="#059669" stroke-width="1" />
+    <text x="155" y="17" text-anchor="middle" class="tbl-header">customers (Khách hàng &amp; Hội viên)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">name : NVARCHAR(100)</text>
+    <text x="10" y="74" class="col-name">phone : NVARCHAR(20) [UNIQUE]</text>
+    <text x="10" y="90" class="col-name">email : NVARCHAR(100), address : NVARCHAR</text>
+    <text x="10" y="106" class="col-name">loyalty_points : INT</text>
+    <text x="10" y="122" class="col-name">membership_tier : NVARCHAR(20) (STANDARD/SILVER/GOLD/DIAMOND)</text>
+  </g>
+
+  <!-- Table: vouchers -->
+  <g transform="translate(385, 660)" filter="url(#shadow)">
+    <rect width="300" height="24" rx="4" fill="#059669" />
+    <rect y="24" width="300" height="115" fill="#ffffff" stroke="#059669" stroke-width="1" />
+    <text x="150" y="17" text-anchor="middle" class="tbl-header">vouchers (Mã giảm giá)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">code : NVARCHAR(50) [UNIQUE]</text>
+    <text x="10" y="74" class="col-name">discount_type : NVARCHAR(20) (PERCENT/FIXED_AMOUNT)</text>
+    <text x="10" y="90" class="col-name">discount_value : DECIMAL(15,2)</text>
+    <text x="10" y="106" class="col-name">min_order_amount : DECIMAL, max_uses : INT</text>
+    <text x="10" y="122" class="col-name">used_count : INT, is_active : BIT</text>
+  </g>
+
+  <!-- ==================== REGION 3: NHÂN SỰ & CA LÀM VIỆC ==================== -->
+  <rect x="730" y="75" width="695" height="425" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="750" y="100" class="group-label">PHÂN HỆ 3: TÀI KHOẢN, CA LÀM VIỆC &amp; SỔ QUỸ THU CHI</text>
+
+  <!-- Table: users -->
+  <g transform="translate(750, 120)" filter="url(#shadow)">
+    <rect width="210" height="24" rx="4" fill="#7c3aed" />
+    <rect y="24" width="210" height="110" fill="#ffffff" stroke="#7c3aed" stroke-width="1" />
+    <text x="105" y="17" text-anchor="middle" class="tbl-header">users (Tài khoản người dùng)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">username : NVARCHAR(50) [UQ]</text>
+    <text x="10" y="74" class="col-name">password_hash : NVARCHAR(255)</text>
+    <text x="10" y="90" class="col-name">full_name : NVARCHAR(100)</text>
+    <text x="10" y="106" class="col-name">role : NVARCHAR(20) (MGR/CASH/KIT)</text>
+    <text x="10" y="122" class="col-name">is_active : BIT, created_at</text>
+  </g>
+
+  <!-- Table: shifts -->
+  <g transform="translate(990, 120)" filter="url(#shadow)">
+    <rect width="215" height="24" rx="4" fill="#7c3aed" />
+    <rect y="24" width="215" height="125" fill="#ffffff" stroke="#7c3aed" stroke-width="1" />
+    <text x="107" y="17" text-anchor="middle" class="tbl-header">shifts (Ca làm việc &amp; Két)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK user_id : INT</text>
+    <text x="10" y="74" class="col-name">start_time : DATETIME2</text>
+    <text x="10" y="90" class="col-name">end_time : DATETIME2</text>
+    <text x="10" y="106" class="col-name">initial_cash : DECIMAL(15,2)</text>
+    <text x="10" y="122" class="col-name">actual_cash, difference_amount</text>
+    <text x="10" y="138" class="col-name">status : NVARCHAR(20)</text>
+  </g>
+
+  <!-- Table: employee_attendances -->
+  <g transform="translate(750, 275)" filter="url(#shadow)">
+    <rect width="210" height="24" rx="4" fill="#7c3aed" />
+    <rect y="24" width="210" height="110" fill="#ffffff" stroke="#7c3aed" stroke-width="1" />
+    <text x="105" y="17" text-anchor="middle" class="tbl-header">employee_attendances (Chấm công)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK user_id : INT</text>
+    <text x="10" y="74" class="col-name">shift_date : DATE</text>
+    <text x="10" y="90" class="col-name">shift_type : NVARCHAR(20)</text>
+    <text x="10" y="106" class="col-name">check_in, check_out : DATETIME</text>
+    <text x="10" y="122" class="col-name">status : NVARCHAR(20)</text>
+  </g>
+
+  <!-- Table: cash_transactions -->
+  <g transform="translate(990, 275)" filter="url(#shadow)">
+    <rect width="215" height="24" rx="4" fill="#7c3aed" />
+    <rect y="24" width="215" height="110" fill="#ffffff" stroke="#7c3aed" stroke-width="1" />
+    <text x="107" y="17" text-anchor="middle" class="tbl-header">cash_transactions (Sổ quỹ Thu-Chi)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK user_id : INT</text>
+    <text x="10" y="74" class="col-fk">FK shift_id : INT</text>
+    <text x="10" y="90" class="col-name">type : NVARCHAR(10) (IN/OUT)</text>
+    <text x="10" y="106" class="col-name">amount : DECIMAL(15,2)</text>
+    <text x="10" y="122" class="col-name">category, note, created_at</text>
+  </g>
+
+  <!-- ==================== REGION 4: QUẢN LÝ KHO & KIỂM KÊ ==================== -->
+  <rect x="730" y="515" width="695" height="480" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)" />
+  <text x="750" y="540" class="group-label">PHÂN HỆ 4: KHO HÀNG, NGUYÊN LIỆU &amp; KIỂM KÊ (STOCKTAKE)</text>
+
+  <!-- Table: suppliers -->
+  <g transform="translate(750, 560)" filter="url(#shadow)">
+    <rect width="200" height="24" rx="4" fill="#ea580c" />
+    <rect y="24" width="200" height="90" fill="#ffffff" stroke="#ea580c" stroke-width="1" />
+    <text x="100" y="17" text-anchor="middle" class="tbl-header">suppliers (Nhà cung cấp)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">name : NVARCHAR(150)</text>
+    <text x="10" y="74" class="col-name">phone : NVARCHAR(20)</text>
+    <text x="10" y="90" class="col-name">address, email : NVARCHAR</text>
+  </g>
+
+  <!-- Table: inventory_items -->
+  <g transform="translate(980, 560)" filter="url(#shadow)">
+    <rect width="215" height="24" rx="4" fill="#ea580c" />
+    <rect y="24" width="215" height="110" fill="#ffffff" stroke="#ea580c" stroke-width="1" />
+    <text x="107" y="17" text-anchor="middle" class="tbl-header">inventory_items (Nguyên liệu)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-name">name : NVARCHAR(100)</text>
+    <text x="10" y="74" class="col-name">unit : NVARCHAR(20)</text>
+    <text x="10" y="90" class="col-name">current_stock, min_stock : DEC</text>
+    <text x="10" y="106" class="col-name">cost_price : DECIMAL(15,2)</text>
+    <text x="10" y="122" class="col-fk">FK supplier_id : INT</text>
+  </g>
+
+  <!-- Table: stock_movements -->
+  <g transform="translate(750, 690)" filter="url(#shadow)">
+    <rect width="200" height="24" rx="4" fill="#ea580c" />
+    <rect y="24" width="200" height="110" fill="#ffffff" stroke="#ea580c" stroke-width="1" />
+    <text x="100" y="17" text-anchor="middle" class="tbl-header">stock_movements (Nhập/Xuất)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK item_id : INT</text>
+    <text x="10" y="74" class="col-fk">FK user_id : INT</text>
+    <text x="10" y="90" class="col-name">movement_type : NVARCHAR</text>
+    <text x="10" y="106" class="col-name">quantity, unit_price : DEC</text>
+    <text x="10" y="122" class="col-name">created_at : DATETIME2</text>
+  </g>
+
+  <!-- Table: inventory_audits -->
+  <g transform="translate(980, 690)" filter="url(#shadow)">
+    <rect width="215" height="24" rx="4" fill="#ea580c" />
+    <rect y="24" width="215" height="95" fill="#ffffff" stroke="#ea580c" stroke-width="1" />
+    <text x="107" y="17" text-anchor="middle" class="tbl-header">inventory_audits (Phiếu kiểm kê)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK user_id : INT</text>
+    <text x="10" y="74" class="col-name">audit_date : DATETIME2</text>
+    <text x="10" y="90" class="col-name">status : NVARCHAR(20)</text>
+    <text x="10" y="106" class="col-name">note : NVARCHAR(255)</text>
+  </g>
+
+  <!-- Table: inventory_audit_details -->
+  <g transform="translate(860, 835)" filter="url(#shadow)">
+    <rect width="230" height="24" rx="4" fill="#ea580c" />
+    <rect y="24" width="230" height="105" fill="#ffffff" stroke="#ea580c" stroke-width="1" />
+    <text x="115" y="17" text-anchor="middle" class="tbl-header">inventory_audit_details (Chi tiết)</text>
+    <text x="10" y="42" class="col-pk">PK id : INT</text>
+    <text x="10" y="58" class="col-fk">FK audit_id : INT</text>
+    <text x="10" y="74" class="col-fk">FK item_id : INT</text>
+    <text x="10" y="90" class="col-name">system_stock : DECIMAL(12,3)</text>
+    <text x="10" y="106" class="col-name">actual_stock : DECIMAL(12,3)</text>
+    <text x="10" y="122" class="col-name">difference : DECIMAL(12,3)</text>
+  </g>
+
+  <!-- ==================== RELATIONSHIP LINES ==================== -->
+  <!-- categories -> menu_items -->
+  <line x1="235" y1="150" x2="265" y2="150" class="rel-strong" />
+
+  <!-- menu_items -> order_details -->
+  <path d="M 265,180 L 250,180 L 250,290 L 235,290" class="rel-strong" />
+
+  <!-- orders -> order_details -->
+  <line x1="265" y1="330" x2="235" y2="330" class="rel-strong" />
+
+  <!-- dining_tables -> orders -->
+  <path d="M 495,170 L 480,170 L 480,300 L 465,300" class="rel-strong" />
+
+  <!-- dining_tables -> reservations -->
+  <line x1="590" y1="215" x2="590" y2="255" class="rel-strong" />
+
+  <!-- suppliers -> inventory_items -->
+  <line x1="950" y1="600" x2="980" y2="600" class="rel-strong" />
+
+  <!-- inventory_items -> stock_movements -->
+  <path d="M 980,640 L 965,640 L 965,740 L 950,740" class="rel-strong" />
+
+  <!-- inventory_audits -> inventory_audit_details -->
+  <path d="M 1080,785 L 1080,810 L 975,810 L 975,835" class="rel-strong" />
+
+  <!-- inventory_items -> inventory_audit_details -->
+  <path d="M 1195,620 L 1210,620 L 1210,880 L 1090,880" class="rel-strong" />
+</svg>"""
+
+os.makedirs('docs', exist_ok=True)
+svg_path = os.path.abspath('docs/erd_diagram.svg')
+with open(svg_path, 'w', encoding='utf-8') as f:
+    f.write(svg_content)
+
+print('ERD SVG generated at:', svg_path)

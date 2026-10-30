@@ -32,6 +32,13 @@ public class CustomerPanel extends JPanel {
     private JLabel lblGoldCount;
     private JLabel lblDiamondCount;
 
+    private Runnable onReturnToPosRequested;
+    private boolean fromPosRedirect = false;
+
+    public void setOnReturnToPosRequested(Runnable onReturnToPosRequested) {
+        this.onReturnToPosRequested = onReturnToPosRequested;
+    }
+
     public CustomerPanel(User currentUser) {
         this.currentUser = currentUser;
         this.customerController = new CustomerController();
@@ -209,26 +216,63 @@ public class CustomerPanel extends JPanel {
     }
 
     private void showAddCustomerDialog() {
+        showAddCustomerDialog("");
+    }
+
+    public void showAddCustomerDialog(String defaultPhone) {
         JTextField txtName = new JTextField();
-        JTextField txtPhone = new JTextField();
+        JTextField txtPhone = new JTextField(defaultPhone != null ? defaultPhone : "");
         JTextField txtEmail = new JTextField();
         JTextField txtAddress = new JTextField();
 
         JPanel p = new JPanel(new GridLayout(4, 2, 8, 8));
-        p.add(new JLabel("Họ tên:")); p.add(txtName);
-        p.add(new JLabel("Số điện thoại:")); p.add(txtPhone);
+        p.add(new JLabel("Họ tên (*):")); p.add(txtName);
+        p.add(new JLabel("Số điện thoại (*):")); p.add(txtPhone);
         p.add(new JLabel("Email:")); p.add(txtEmail);
         p.add(new JLabel("Địa chỉ:")); p.add(txtAddress);
 
         int res = JOptionPane.showConfirmDialog(this, p, "Thêm khách hàng mới", JOptionPane.OK_CANCEL_OPTION);
         if (res == JOptionPane.OK_OPTION) {
+            String name = txtName.getText().trim();
+            String phone = txtPhone.getText().trim();
+            if (name.isEmpty() || phone.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Họ tên và Số điện thoại không được để trống!", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                fromPosRedirect = false;
+                return;
+            }
             try {
-                customerController.createCustomer(txtName.getText(), txtPhone.getText(), txtEmail.getText(), txtAddress.getText());
-                JOptionPane.showMessageDialog(this, "Thêm khách hàng thành công!");
-                loadDataAsync("");
+                customerController.createCustomer(name, phone, txtEmail.getText().trim(), txtAddress.getText().trim());
+                loadDataAsync(phone);
+                if (fromPosRedirect && onReturnToPosRequested != null) {
+                    fromPosRedirect = false;
+                    int ret = JOptionPane.showConfirmDialog(this,
+                            "Thêm khách hàng thành công!\nBạn có muốn quay lại màn hình Thu ngân (POS) để tiếp tục tạo đơn?",
+                            "Thành công",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.QUESTION_MESSAGE);
+                    if (ret == JOptionPane.YES_OPTION) {
+                        onReturnToPosRequested.run();
+                        return;
+                    }
+                } else {
+                    fromPosRedirect = false;
+                    JOptionPane.showMessageDialog(this, "Thêm khách hàng thành công!");
+                }
             } catch (Exception ex) {
+                fromPosRedirect = false;
                 JOptionPane.showMessageDialog(this, "Lỗi: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
+        } else {
+            fromPosRedirect = false;
+        }
+    }
+
+    public void prepareNewCustomerWithPhone(String phone) {
+        if (phone != null && !phone.isBlank()) {
+            this.fromPosRedirect = true;
+            txtSearch.setText(phone.trim());
+            loadDataAsync(phone.trim());
+            SwingUtilities.invokeLater(() -> showAddCustomerDialog(phone.trim()));
         }
     }
 

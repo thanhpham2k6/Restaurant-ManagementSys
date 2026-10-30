@@ -23,7 +23,7 @@ public class TableController {
 
     /**
      * Mở bàn với pessimistic locking (SELECT ... WITH (UPDLOCK)).
-     * @throws TableBusyException nếu bàn đã có khách hoặc đã đặt trước
+     * Cho phép mở bàn trống, bàn đặt trước (khách đến nhận bàn) hoặc bàn đã có khách.
      */
     public Order openTable(int tableId, User cashier) throws TableBusyException {
         try (Connection conn = DatabaseConnection.getInstance().getConnection()) {
@@ -34,33 +34,61 @@ public class TableController {
                     conn.rollback();
                     throw new RuntimeException("Không tìm thấy bàn ID=" + tableId);
                 }
-                if (!table.getStatus().isAvailable()) {
-                    conn.rollback();
-                    throw new TableBusyException("Bàn '" + table.getName() + "' đang có khách hoặc đã được đặt trước!");
+
+                // 1. Nếu bàn đã có đơn hàng mở sẵn, trả về đơn hàng hiện tại
+                Order existing = orderDAO.findOpenByTable(tableId);
+                if (existing != null) {
+                    conn.commit();
+                    return existing;
                 }
 
-                // Cập nhật trạng thái bàn sang OCCUPIED
+                // 2. Chuyển trạng thái bàn sang OCCUPIED (kể cả trước đó là AVAILABLE hay RESERVED)
                 tableDAO.updateStatus(conn, tableId, TableStatus.OCCUPIED);
 
-                // Tạo đơn hàng mới cho bàn
+                // 3. Nếu bàn đang có lịch đặt trước (RESERVED / CONFIRMED / PENDING), cập nhật sang SEATED
+                try (PreparedStatement psRes = conn.prepareStatement(
+                        "UPDATE reservations SET status = 'SEATED' WHERE table_id = ? AND status IN ('PENDING', 'CONFIRMED')")) {
+                    psRes.setInt(1, tableId);
+                    psRes.executeUpdate();
+                }
+
+                // 4. Khởi tạo đơn hàng mới cho bàn
                 Order order = new Order();
                 order.setTable(table);
                 order.setCashier(cashier);
+                order.setOrderType(OrderType.DINE_IN);
+                order.setStatus(OrderStatus.OPEN);
+
+                // 5. Tìm thông tin khách đặt bàn gần nhất (nếu có) để gắn ghi chú và liên kết
+                try (PreparedStatement psInfo = conn.prepareStatement(
+                        "SELECT TOP 1 customer_id, customer_name, customer_phone, deposit_amount FROM reservations WHERE table_id = ? AND status = 'SEATED' ORDER BY id DESC")) {
+                    psInfo.setInt(1, tableId);
+                    try (java.sql.ResultSet rsInfo = psInfo.executeQuery()) {
+                        if (rsInfo.next()) {
+                            int cId = rsInfo.getInt("customer_id");
+                            if (!rsInfo.wasNull()) order.setCustomerId(cId);
+                            String cName = rsInfo.getString("customer_name");
+                            String cPhone = rsInfo.getString("customer_phone");
+                            java.math.BigDecimal dep = rsInfo.getBigDecimal("deposit_amount");
+                            String note = "Khách đặt trước: " + cName + " (" + cPhone + ")";
+                            if (dep != null && dep.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                                note += " | Tiền cọc: " + com.pos.utils.CurrencyFormat.format(dep);
+                            }
+                            order.setNote(note);
+                        }
+                    }
+                } catch (Exception ignored) {}
+
                 int orderId = orderDAO.insert(conn, order);
                 order.setId(orderId);
 
                 conn.commit();
-                log.info("Bàn {} đã mở, mã đơn #{} bởi nhân viên {}", table.getName(), orderId, cashier.getUsername());
+                log.info("Bàn {} đã mở, mã đơn #{} bởi nhân viên {}", table.getName(), orderId, cashier != null ? cashier.getUsername() : "system");
                 return order;
-            } catch (TableBusyException e) {
-                conn.rollback();
-                throw e;
             } catch (Exception e) {
                 conn.rollback();
                 throw new RuntimeException("Lỗi khi mở bàn: " + e.getMessage(), e);
             }
-        } catch (TableBusyException e) {
-            throw e;
         } catch (SQLException e) {
             log.error("openTable error", e);
             throw new RuntimeException("Lỗi kết nối cơ sở dữ liệu: " + e.getMessage(), e);

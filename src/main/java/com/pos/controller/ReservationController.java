@@ -61,6 +61,9 @@ public class ReservationController {
         res.setNote(note);
 
         int id = reservationDAO.insert(res);
+        if (id <= 0) {
+            throw new RuntimeException("Lỗi lưu cơ sở dữ liệu: Không thể tạo lịch đặt bàn!");
+        }
 
         // Đặt trạng thái bàn thành RESERVED nếu đặt trong ngày hôm nay
         if (time.toLocalDate().isEqual(LocalDate.now())) {

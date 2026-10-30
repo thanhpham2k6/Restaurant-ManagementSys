@@ -69,37 +69,36 @@ src/main/java/com/pos/
 
 ## 🗄 Hướng dẫn thiết lập Cơ sở dữ liệu (SQL Server)
 
-1. Mở **SQL Server Management Studio (SSMS)**.
-2. Mở file [database/schema.sql](file:///c:/Users/Thanhpham/Documents/GitHub/Restaurant-ManagementSys/database/schema.sql) và thực thi (Execute / F5).
-3. Script sẽ tự động:
-   - Tạo database `RestaurantManagementSys`.
-   - Tạo đầy đủ 9 bảng quan hệ: `users`, `categories`, `menu_items`, `dining_tables`, `orders`, `order_details`, `ingredients`, `recipes`, `stock_movements`.
-   - Thêm 3 tài khoản mặc định (Manager, Cashier, Kitchen).
-   - Thêm 10 bàn ăn mẫu.
-   - Thêm 50 món ăn Việt Nam phong phú và các danh mục.
-   - Thêm nguyên liệu kho ban đầu và công thức định lượng (Recipes) mẫu.
+Hệ thống hỗ trợ 2 cách cài đặt CSDL cực kỳ tiện lợi trong thư mục `database/`:
+- **Cách 1 (Khuyên dùng - 100% tương thích mọi phiên bản SQL Server):** Chạy tệp **`database/setup_db.bat`** (hoặc mở file [database/setup_database.sql](file:///c:/Users/Thanhpham/Documents/GitHub/Restaurant-ManagementSys/database/setup_database.sql) trong SSMS và ấn F5).
+- **Cách 2 (Phục hồi từ file backup):** Chạy tệp **`database/restore_db.bat`** để tự động restore từ tệp [RestaurantManagementSys.bak](file:///c:/Users/Thanhpham/Documents/GitHub/Restaurant-ManagementSys/database/RestaurantManagementSys.bak).
+
+Cả hai script đều tự động dò tìm máy chủ SQL Server (`localhost` hoặc `SQLEXPRESS`) và tự động đồng bộ cấu hình vào `db.properties`.
+
+Chi tiết xem tại tài liệu hướng dẫn: [database/HUONG_DAN_CAI_DAT_DATABASE.md](file:///c:/Users/Thanhpham/Documents/GitHub/Restaurant-ManagementSys/database/HUONG_DAN_CAI_DAT_DATABASE.md).
 
 ### 🔑 Tài khoản đăng nhập mẫu
 
 | Tên đăng nhập | Mật khẩu | Quyền hạn (Role) | Chức năng truy cập |
 |---------------|----------|-------------------|---------------------|
-| `manager` | `password123` | **MANAGER** (Quản lý) | Toàn quyền: POS, Bếp, Kho, Định lượng, Báo cáo |
-| `cashier1` | `password123` | **CASHIER** (Thu ngân) | Bán hàng (POS), Sơ đồ bàn, Theo dõi trạng thái bếp |
-| `kitchen1` | `password123` | **KITCHEN** (Nhà bếp) | Nhận món, Báo nấu, Kho nguyên vật liệu |
+| `admin` | `admin123` | **MANAGER** (Quản lý) | Toàn quyền: POS, Bếp, Sơ đồ bàn, Thực đơn, Khách hàng, Voucher, Kho hàng, Sổ quỹ, Ca làm việc, Báo cáo & Tài khoản |
+| `cashier1` | `cashier123` | **CASHIER** (Thu ngân) | Điểm bán hàng (POS), Sơ đồ bàn & Đặt bàn, Quản lý khách hàng, Ca làm việc & Két tiền |
+| `kitchen1` | `kitchen123` | **KITCHEN** (Nhà bếp) | Màn hình KDS Bếp & Bar: Điều phối nấu món theo thời gian thực |
 
 ---
 
 ## ⚙ Cấu hình kết nối CSDL
 
-File cấu hình: [DatabaseConnection.java](file:///c:/Users/Thanhpham/Documents/GitHub/Restaurant-ManagementSys/src/main/java/com/pos/utils/DatabaseConnection.java)
+File cấu hình kết nối: `db.properties` (hoặc `src/main/resources/db.properties`)
 
-```java
-private static final String JDBC_URL =
-    "jdbc:sqlserver://26.97.143.116;databaseName=RestaurantManagementSys;encrypt=true;trustServerCertificate=true;";
-private static final String DB_USER = "sa";
-private static final String DB_PASS = "12345";
+```properties
+db.host=localhost
+db.port=1433
+db.name=RestaurantManagementSys
+db.user=sa
+db.password=12345
 ```
-*(Bạn có thể đổi IP máy chủ `26.97.143.116` sang `localhost` hoặc IP SQL Server của bạn nếu cần)*.
+*(Nếu máy dùng SQL Server Express hoặc cổng khác, bạn chỉ cần sửa `db.host=localhost\\SQLEXPRESS` hoặc chạy file `setup_db.bat`/`restore_db.bat` để được cấu hình tự động).*
 
 ---
 

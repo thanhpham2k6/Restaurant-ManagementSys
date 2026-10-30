@@ -144,11 +144,11 @@ public class KitchenPanel extends JPanel implements OrderObserver {
             btnPanel.setBackground(new Color(248, 250, 252));
             btnPanel.setBorder(new EmptyBorder(6, 10, 6, 10));
 
-            JButton btnAccept = createActionButton("Nhận món & Trừ kho", new Color(46, 125, 50));
-            JButton btnCooking = createActionButton("Bắt đầu nấu", new Color(239, 108, 0));
-            JButton btnDone = createActionButton("Báo nấu xong", new Color(25, 118, 210));
-            JButton btnReject = createActionButton("Từ chối món", new Color(198, 40, 40));
+            JButton btnAccept = createActionButton("1. Nhận món", new Color(37, 99, 235));
+            JButton btnCooking = createActionButton("2. Nấu món", new Color(217, 119, 6));
+            JButton btnDone = createActionButton("3. Nấu xong", new Color(16, 185, 129));
             JButton btnAcceptAll = createActionButton("Nhận tất cả món chờ", new Color(13, 148, 136));
+            JButton btnReject = createActionButton("Từ chối món", new Color(198, 40, 40));
 
             btnAccept.addActionListener(e -> acceptSelected());
             btnCooking.addActionListener(e -> startCookingSelected());
@@ -222,9 +222,9 @@ public class KitchenPanel extends JPanel implements OrderObserver {
             }
 
             String status = switch (d.getStatus()) {
-                case PENDING  -> "Chờ nhận món";
-                case ACCEPTED -> "Đã nhận (chờ nấu)";
-                case COOKING  -> "Đang nấu...";
+                case PENDING  -> "1. Chờ nhận món";
+                case ACCEPTED -> "2. Đã nhận (chờ nấu)";
+                case COOKING  -> "3. Đang nấu...";
                 case DONE     -> "Đã nấu xong";
                 case REJECTED -> "Đã từ chối";
             };
@@ -266,14 +266,16 @@ public class KitchenPanel extends JPanel implements OrderObserver {
         int count = 0;
         for (OrderDetail d : items) {
             if (d.getStatus() == ItemStatus.PENDING) {
-                kitchenController.acceptItem(d.getId(), currentUser);
-                count++;
+                try {
+                    kitchenController.acceptItem(d.getId(), currentUser);
+                    count++;
+                } catch (Exception ignored) {}
             }
         }
         if (count > 0) {
-            JOptionPane.showMessageDialog(this, "Đã nhận nhanh " + count + " món chờ chế biến!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Đã nhận nhanh " + count + " món chờ chế biến sang bước '2. Đã nhận (chờ nấu)'!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
         } else {
-            JOptionPane.showMessageDialog(this, "Không có món nào đang ở trạng thái 'Chờ nhận'!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Không có món nào đang ở trạng thái '1. Chờ nhận món'!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
         }
         loadItems();
     }
@@ -291,41 +293,152 @@ public class KitchenPanel extends JPanel implements OrderObserver {
     private void acceptSelected() {
         int detailId = getSelectedDetailId();
         if (detailId < 0 || kitchenController == null) return;
-        kitchenController.acceptItem(detailId, currentUser);
-        loadItems();
+
+        int viewRow = itemTable.getSelectedRow();
+        int modelRow = itemTable.convertRowIndexToModel(viewRow);
+        String currentStatus = tableModel.getValueAt(modelRow, 6).toString();
+
+        if (currentStatus.contains("Đã nhận")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đã được nhận rồi!\nBước tiếp theo theo đúng thứ tự là bấm: '2. Nấu món'.",
+                "Đã nhận trước đó", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("Đang nấu")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đang được nấu trên bếp rồi!",
+                "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("xong")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đã nấu xong hoàn tất!",
+                "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("từ chối")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đã bị từ chối!",
+                "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            kitchenController.acceptItem(detailId, currentUser);
+            loadItems();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void startCookingSelected() {
         int detailId = getSelectedDetailId();
         if (detailId < 0 || kitchenController == null) return;
-        kitchenController.startCooking(detailId);
-        loadItems();
+
+        int viewRow = itemTable.getSelectedRow();
+        int modelRow = itemTable.convertRowIndexToModel(viewRow);
+        String currentStatus = tableModel.getValueAt(modelRow, 6).toString();
+
+        // Kiểm tra thứ tự bắt buộc: 1. Nhận món -> 2. Nấu món -> 3. Nấu xong
+        if (currentStatus.contains("Chờ nhận")) {
+            JOptionPane.showMessageDialog(this,
+                "Quy trình bếp bắt buộc theo đúng thứ tự:\n" +
+                "  1. Nhận món  ->  2. Nấu món  ->  3. Nấu xong\n\n" +
+                "Món này chưa được nhận. Vui lòng bấm '1. Nhận món' trước!",
+                "Chưa nhận món", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("Đang nấu")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đã đang ở trạng thái 'Đang nấu' rồi!\nBước tiếp theo khi nấu xong: Bấm '3. Nấu xong'.",
+                "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("xong")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đã nấu xong hoàn tất!",
+                "Thông báo", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("từ chối")) {
+            JOptionPane.showMessageDialog(this,
+                "Món này đã bị từ chối!",
+                "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            kitchenController.startCooking(detailId);
+            loadItems();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void markDoneSelected() {
         int detailId = getSelectedDetailId();
         if (detailId < 0 || kitchenController == null) return;
-        // Kiểm tra trạng thái hiện tại - chỉ cho phép báo xong khi đang nấu
+
         int viewRow = itemTable.getSelectedRow();
         int modelRow = itemTable.convertRowIndexToModel(viewRow);
         String currentStatus = tableModel.getValueAt(modelRow, 6).toString();
+
+        // Kiểm tra thứ tự bắt buộc: 1. Nhận món -> 2. Nấu món -> 3. Nấu xong
+        if (currentStatus.contains("Chờ nhận")) {
+            JOptionPane.showMessageDialog(this,
+                "Quy trình bếp bắt buộc theo đúng thứ tự:\n" +
+                "  1. Nhận món  ->  2. Nấu món  ->  3. Nấu xong\n\n" +
+                "Món này chưa được nhận và chưa nấu. Không thể báo nấu xong!",
+                "Chưa nhận món", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (currentStatus.contains("Đã nhận")) {
+            JOptionPane.showMessageDialog(this,
+                "Quy trình bếp bắt buộc theo đúng thứ tự:\n" +
+                "  1. Nhận món  ->  2. Nấu món  ->  3. Nấu xong\n\n" +
+                "Món này mới chỉ được nhận, chưa nấu!\n" +
+                "Vui lòng bấm '2. Nấu món' trước khi báo nấu xong.",
+                "Chưa bắt đầu nấu", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         if (!currentStatus.contains("Đang nấu")) {
             JOptionPane.showMessageDialog(this,
                 "Chỉ có thể báo xong khi món đang ở trạng thái 'Đang nấu'!\nTrạng thái hiện tại: " + currentStatus,
                 "Không thể thực hiện", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        kitchenController.markDone(detailId);
-        loadItems();
+
+        try {
+            kitchenController.markDone(detailId);
+            loadItems();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void rejectSelected() {
         int detailId = getSelectedDetailId();
         if (detailId < 0 || kitchenController == null) return;
+
+        int viewRow = itemTable.getSelectedRow();
+        int modelRow = itemTable.convertRowIndexToModel(viewRow);
+        String currentStatus = tableModel.getValueAt(modelRow, 6).toString();
+
+        if (currentStatus.contains("Đang nấu") || currentStatus.contains("xong")) {
+            JOptionPane.showMessageDialog(this,
+                "Không thể từ chối món đang nấu hoặc đã nấu xong!",
+                "Không thể từ chối", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         String reason = JOptionPane.showInputDialog(this, "Nhập lý do từ chối (hết nguyên liệu...):", "Hết nguyên liệu");
-        if (reason == null) return;
-        kitchenController.rejectItem(detailId, reason);
-        loadItems();
+        if (reason == null || reason.trim().isEmpty()) return;
+        try {
+            kitchenController.rejectItem(detailId, reason.trim());
+            loadItems();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void startAutoRefresh() {
@@ -346,21 +459,30 @@ public class KitchenPanel extends JPanel implements OrderObserver {
             if (!isSelected && row >= 0 && row < table.getRowCount()) {
                 int modelRow = table.convertRowIndexToModel(row);
                 String val = table.getModel().getValueAt(modelRow, 6).toString();
-                if (val.contains("Đang nấu")) {
-                    c.setBackground(new Color(254, 243, 199));
-                    c.setForeground(new Color(146, 64, 14));
-                } else if (val.contains("Đã nấu xong") || val.contains("xong")) {
-                    c.setBackground(new Color(220, 252, 231));
-                    c.setForeground(new Color(22, 101, 52));
-                } else if (val.contains("Từ chối") || val.contains("từ chối")) {
-                    c.setBackground(new Color(254, 226, 226));
-                    c.setForeground(new Color(185, 28, 28));
+                if (val.contains("Chờ nhận")) {
+                    c.setBackground(new Color(254, 243, 199)); // Vàng cam cảnh báo
+                    c.setForeground(new Color(180, 83, 9));
+                    c.setFont(c.getFont().deriveFont(Font.BOLD));
                 } else if (val.contains("Đã nhận")) {
-                    c.setBackground(new Color(224, 242, 254));
+                    c.setBackground(new Color(224, 242, 254)); // Xanh dương nhạt
                     c.setForeground(new Color(3, 105, 161));
+                    c.setFont(c.getFont().deriveFont(Font.PLAIN));
+                } else if (val.contains("Đang nấu")) {
+                    c.setBackground(new Color(255, 237, 213)); // Cam nấu
+                    c.setForeground(new Color(194, 65, 12));
+                    c.setFont(c.getFont().deriveFont(Font.BOLD));
+                } else if (val.contains("Đã nấu xong") || val.contains("xong")) {
+                    c.setBackground(new Color(220, 252, 231)); // Xanh lá
+                    c.setForeground(new Color(22, 101, 52));
+                    c.setFont(c.getFont().deriveFont(Font.BOLD));
+                } else if (val.contains("Từ chối") || val.contains("từ chối")) {
+                    c.setBackground(new Color(254, 226, 226)); // Đỏ
+                    c.setForeground(new Color(185, 28, 28));
+                    c.setFont(c.getFont().deriveFont(Font.PLAIN));
                 } else {
                     c.setBackground(Color.WHITE);
                     c.setForeground(new Color(30, 41, 59));
+                    c.setFont(c.getFont().deriveFont(Font.PLAIN));
                 }
 
                 // Highlight note column with special warning color if not empty

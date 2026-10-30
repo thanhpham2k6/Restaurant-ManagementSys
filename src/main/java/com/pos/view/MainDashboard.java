@@ -100,6 +100,11 @@ public class MainDashboard extends JFrame {
         }
 
         posPanel.setOnNavigateTabRequested(this::navigateToTab);
+        posPanel.setOnCustomerRedirectRequested(this::navigateToCustomersWithPhone);
+        customerPanel.setOnReturnToPosRequested(() -> {
+            switchToCard("POS");
+            posPanel.lookupCustomer();
+        });
 
         // Observers wiring
         orderController.attach(dashboardPanel);
@@ -140,9 +145,9 @@ public class MainDashboard extends JFrame {
         centerCardContainer.setOpaque(false);
 
         registerCard("DASHBOARD", "Tổng quan kinh doanh", "Theo dõi tình hình kinh doanh, hóa đơn và cảnh báo kho thời gian thực", dashboardPanel);
-        registerCard("POS", "Thu ngân - Điểm bán hàng (POS)", "Lập đơn bán hàng tại bàn & mang về, áp dụng voucher và in hóa đơn", posPanel);
+        registerCard("POS", "Thu ngân - Điểm bán hàng", "Lập đơn bán hàng tại bàn & mang về, áp dụng voucher và in hóa đơn", posPanel);
         registerCard("TABLES", "Sơ đồ bàn & Đặt bàn", "Theo dõi sơ đồ bàn trực quan và quản lý đặt bàn trước", tableReservationPanel);
-        registerCard("KITCHEN", "Màn hình Bếp & Bar (KDS)", "Điều phối thứ tự chế biến món theo thời gian thực", kitchenPanel);
+        registerCard("KITCHEN", "Màn hình Bếp & Bar", "Điều phối thứ tự chế biến món theo thời gian thực", kitchenPanel);
         registerCard("MENU", "Quản lý Thực đơn & Món ăn", "Quản lý danh sách món ăn, danh mục, đơn giá và trạng thái còn món", menuPanel);
         registerCard("CUSTOMERS", "Khách hàng & Hội viên", "Quản lý hồ sơ khách hàng, phân hạng thành viên và tích lũy điểm", customerPanel);
         registerCard("VOUCHERS", "Khuyến mãi & Voucher", "Thiết lập chương trình ưu đãi, mã giảm giá và chiết khấu", voucherPanel);
@@ -240,11 +245,11 @@ public class MainDashboard extends JFrame {
             addNavItem(menuContainer, "DASHBOARD", "Tổng quan");
         }
         if (role == Role.MANAGER || role == Role.CASHIER) {
-            addNavItem(menuContainer, "POS", "Thu ngân (POS)");
+            addNavItem(menuContainer, "POS", "Thu ngân");
             addNavItem(menuContainer, "TABLES", "Sơ đồ bàn & Đặt bàn");
         }
         if (role == Role.MANAGER || role == Role.CASHIER || role == Role.KITCHEN) {
-            addNavItem(menuContainer, "KITCHEN", "Màn hình Bếp (KDS)");
+            addNavItem(menuContainer, "KITCHEN", "Màn hình Bếp");
         }
 
         // SECTION 2: THỰC ĐƠN & KHÁCH HÀNG
@@ -503,6 +508,13 @@ public class MainDashboard extends JFrame {
         if (posPanel != null && table != null) {
             posPanel.loadTablesAsync();
             posPanel.selectDiningTable(table);
+        }
+    }
+
+    public void navigateToCustomersWithPhone(String phone) {
+        switchToCard("CUSTOMERS");
+        if (customerPanel != null) {
+            customerPanel.prepareNewCustomerWithPhone(phone);
         }
     }
 

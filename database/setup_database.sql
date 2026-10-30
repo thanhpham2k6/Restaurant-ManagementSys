@@ -136,12 +136,14 @@ GO
 CREATE TABLE reservations (
     id               INT IDENTITY(1,1) PRIMARY KEY,
     table_id         INT           NOT NULL REFERENCES dining_tables(id),
+    customer_id      INT           NULL REFERENCES customers(id),
     customer_name    NVARCHAR(100) NOT NULL,
     customer_phone   NVARCHAR(20)  NOT NULL,
     party_size       INT           NOT NULL DEFAULT 2,
     reservation_time DATETIME2     NOT NULL,
     deposit_amount   DECIMAL(15,2) NOT NULL DEFAULT 0,
     status           NVARCHAR(15)  NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','CONFIRMED','SEATED','CANCELLED')),
+    channel          NVARCHAR(30)  NOT NULL DEFAULT 'DIRECT',
     note             NVARCHAR(500) NULL,
     created_at       DATETIME2     NOT NULL DEFAULT GETDATE()
 );
@@ -498,9 +500,9 @@ INSERT INTO inventory_items (supplier_id, name, category, unit, cost_price, stoc
 GO
 
 -- 9. RESERVATIONS (Lịch đặt bàn mẫu)
-INSERT INTO reservations (table_id, customer_name, customer_phone, party_size, reservation_time, deposit_amount, status, note) VALUES
-((SELECT id FROM dining_tables WHERE name = N'Bàn VIP 01'), N'Trần Văn Nam', '0912345678', 8, DATEADD(hour, 4, GETDATE()), 500000, 'CONFIRMED', N'Tiệc sinh nhật, cần trang trí nhẹ'),
-((SELECT id FROM dining_tables WHERE name = N'Bàn 05'), N'Nguyễn Thị Lan', '0901234567', 4, DATEADD(day, 1, DATEADD(hour, 2, GETDATE())), 200000, 'CONFIRMED', N'Khách thích ngồi gần cửa sổ');
+INSERT INTO reservations (table_id, customer_name, customer_phone, party_size, reservation_time, deposit_amount, status, channel, note) VALUES
+((SELECT id FROM dining_tables WHERE name = N'Bàn VIP 01'), N'Trần Văn Nam', '0912345678', 8, DATEADD(hour, 4, GETDATE()), 500000, 'CONFIRMED', 'HOTLINE', N'Tiệc sinh nhật, cần trang trí nhẹ'),
+((SELECT id FROM dining_tables WHERE name = N'Bàn 05'), N'Nguyễn Thị Lan', '0901234567', 4, DATEADD(day, 1, DATEADD(hour, 2, GETDATE())), 200000, 'CONFIRMED', 'ZALO', N'Khách thích ngồi gần cửa sổ');
 GO
 
 -- 10. SHIFTS (Ca làm việc mẫu)

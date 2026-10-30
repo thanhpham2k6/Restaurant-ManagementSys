@@ -82,6 +82,14 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
         tabbedPane.addTab("Sơ đồ bàn (Floor Plan)", createFloorPlanTab());
         tabbedPane.addTab("Lịch Đặt Bàn (Reservations)", createReservationsTab());
 
+        tabbedPane.addChangeListener(e -> {
+            if (tabbedPane.getSelectedIndex() == 1) {
+                loadReservationsAsync();
+            } else {
+                loadTablesAsync();
+            }
+        });
+
         add(tabbedPane, BorderLayout.CENTER);
     }
 
@@ -465,7 +473,9 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
                 try {
                     resList = get();
                     filterReservationsTable();
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }.execute();
     }
@@ -531,13 +541,28 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
         JTextField txtName = new JTextField();
         JTextField txtPhone = new JTextField();
 
+        if (tableList == null || tableList.isEmpty()) {
+            tableList = tableController.getAllTables();
+        }
+
         JComboBox<DiningTable> cbTables = new JComboBox<>();
         for (DiningTable t : tableList) {
             cbTables.addItem(t);
         }
+        cbTables.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof DiningTable dt) {
+                    setText(dt.getName() + " (" + dt.getCapacity() + " chỗ - " + dt.getStatus().getDisplayName() + ")");
+                }
+                return this;
+            }
+        });
 
-        // Date Spinner & Time Spinner
-        SpinnerDateModel dateModel = new SpinnerDateModel(new Date(), null, null, java.util.Calendar.MINUTE);
+        // Date Spinner & Time Spinner (Mặc định 1 giờ sau)
+        Date defaultTime = Date.from(LocalDateTime.now().plusHours(1).atZone(ZoneId.systemDefault()).toInstant());
+        SpinnerDateModel dateModel = new SpinnerDateModel(defaultTime, null, null, java.util.Calendar.MINUTE);
         JSpinner spinTime = new JSpinner(dateModel);
         JSpinner.DateEditor timeEditor = new JSpinner.DateEditor(spinTime, "yyyy-MM-dd HH:mm");
         spinTime.setEditor(timeEditor);
@@ -607,6 +632,9 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
                 JOptionPane.showMessageDialog(dlg, "Đã tiếp nhận lịch đặt bàn thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
                 dlg.dispose();
                 loadAllDataAsync();
+                if (onTableStatusChanged != null) {
+                    onTableStatusChanged.run();
+                }
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(dlg, "Lỗi đặt bàn: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
@@ -639,7 +667,7 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
             return;
         }
         int row = resTable.convertRowIndexToModel(viewRow);
-        int id = (int) resTableModel.getValueAt(row, 0);
+        int id = Integer.parseInt(resTableModel.getValueAt(row, 0).toString());
         reservationController.confirmReservation(id);
         JOptionPane.showMessageDialog(this, "Đã xác nhận đặt bàn thành công!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
         loadAllDataAsync();
@@ -652,11 +680,14 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
             return;
         }
         int row = resTable.convertRowIndexToModel(viewRow);
-        int id = (int) resTableModel.getValueAt(row, 0);
+        int id = Integer.parseInt(resTableModel.getValueAt(row, 0).toString());
         Reservation target = resList.stream().filter(r -> r.getId() == id).findFirst().orElse(null);
         if (target == null) return;
 
         reservationController.seatGuest(id, target.getTableId());
+        try {
+            tableController.openTable(target.getTableId(), currentUser);
+        } catch (Exception ignored) {}
 
         int opt = JOptionPane.showConfirmDialog(this,
             "Khách " + target.getCustomerName() + " đã nhận bàn " + target.getTableName() + ".\nBạn có muốn chuyển sang màn hình Thu ngân để gọi món ngay không?",
@@ -678,7 +709,7 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
             return;
         }
         int row = resTable.convertRowIndexToModel(viewRow);
-        int id = (int) resTableModel.getValueAt(row, 0);
+        int id = Integer.parseInt(resTableModel.getValueAt(row, 0).toString());
         Reservation target = resList.stream().filter(r -> r.getId() == id).findFirst().orElse(null);
         if (target == null) return;
 
@@ -687,6 +718,7 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
             reservationController.cancelReservation(id, target.getTableId());
             JOptionPane.showMessageDialog(this, "Đã hủy lịch đặt bàn!", "Thông báo", JOptionPane.INFORMATION_MESSAGE);
             loadAllDataAsync();
+            if (onTableStatusChanged != null) onTableStatusChanged.run();
         }
     }
 
@@ -697,7 +729,7 @@ public class TableReservationPanel extends JPanel implements com.pos.controller.
             return;
         }
         int row = resTable.convertRowIndexToModel(viewRow);
-        int id = (int) resTableModel.getValueAt(row, 0);
+        int id = Integer.parseInt(resTableModel.getValueAt(row, 0).toString());
         Reservation r = resList.stream().filter(res -> res.getId() == id).findFirst().orElse(null);
         if (r == null) return;
 

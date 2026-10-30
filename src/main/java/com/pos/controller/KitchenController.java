@@ -78,6 +78,9 @@ public class KitchenController {
     public void acceptItem(int detailId, User kitchen) {
         OrderDetail detail = orderDAO.findDetailById(detailId);
         if (detail == null) return;
+        if (detail.getStatus() != ItemStatus.PENDING) {
+            throw new IllegalStateException("Chỉ có thể nhận món khi đang ở trạng thái 'Chờ nhận'!");
+        }
 
         // Bếp nhận chế biến món. Theo quy trình nhà hàng thực tế, hệ thống không tự động trừ kho
         // nguyên liệu tức thời (vì mỗi món ăn có độ tiêu hao linh hoạt, gia vị nêm nếm khó trừ từng gram).
@@ -90,6 +93,9 @@ public class KitchenController {
     public void rejectItem(int detailId, String reason) {
         OrderDetail detail = orderDAO.findDetailById(detailId);
         if (detail == null) return;
+        if (detail.getStatus() == ItemStatus.COOKING || detail.getStatus() == ItemStatus.DONE) {
+            throw new IllegalStateException("Không thể từ chối món đang nấu hoặc đã nấu xong!");
+        }
         orderDAO.updateDetailStatus(detailId, ItemStatus.REJECTED);
         notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_REJECTED, detail.getOrderId(), detailId,
             "Bếp từ chối món: " + (detail.getItem() != null ? detail.getItem().getName() : "") + " (" + reason + ")"));
@@ -98,6 +104,12 @@ public class KitchenController {
     public void startCooking(int detailId) {
         OrderDetail detail = orderDAO.findDetailById(detailId);
         if (detail == null) return;
+        if (detail.getStatus() == ItemStatus.PENDING) {
+            throw new IllegalStateException("Quy trình bắt buộc theo thứ tự: Nhận món -> Nấu món -> Nấu xong! Vui lòng bấm 'Nhận món' trước.");
+        }
+        if (detail.getStatus() != ItemStatus.ACCEPTED) {
+            throw new IllegalStateException("Chỉ có thể bắt đầu nấu khi món đã được nhận (trạng thái hiện tại: " + detail.getStatus() + ")!");
+        }
         orderDAO.updateDetailStatus(detailId, ItemStatus.COOKING);
         notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_COOKING, detail.getOrderId(), detailId,
             "Bếp đang nấu: " + (detail.getItem() != null ? detail.getItem().getName() : "")));
@@ -106,6 +118,9 @@ public class KitchenController {
     public void markDone(int detailId) {
         OrderDetail detail = orderDAO.findDetailById(detailId);
         if (detail == null) return;
+        if (detail.getStatus() != ItemStatus.COOKING) {
+            throw new IllegalStateException("Quy trình bắt buộc theo thứ tự: Nhận món -> Nấu món -> Nấu xong! Chỉ có thể báo xong khi món đang ở trạng thái 'Đang nấu' (hiện tại: " + detail.getStatus() + ").");
+        }
         orderDAO.updateDetailStatus(detailId, ItemStatus.DONE);
         notifyObservers(new OrderEvent(OrderEvent.Type.ITEM_DONE, detail.getOrderId(), detailId,
             "Món đã nấu xong: " + (detail.getItem() != null ? detail.getItem().getName() : "")));

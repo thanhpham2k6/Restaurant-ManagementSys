@@ -216,6 +216,11 @@ public class OrderController {
             throw new RuntimeException("Không thể thanh toán: Đơn hàng đang có " + unsentCount + " món chưa gửi sang Bếp!");
         }
 
+        long notDoneCount = details.stream().filter(d -> d.getStatus() != ItemStatus.DONE && d.getStatus() != ItemStatus.REJECTED).count();
+        if (notDoneCount > 0) {
+            throw new RuntimeException("Không thể thanh toán: Đơn hàng đang có " + notDoneCount + " món chưa được Bếp báo nấu xong!");
+        }
+
         order.setDetails(details);
 
         BigDecimal subtotal = details.stream()

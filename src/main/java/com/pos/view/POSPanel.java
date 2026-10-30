@@ -57,6 +57,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private final VoucherDAO voucherDAO = new VoucherDAO();
 
     private Consumer<String> onNavigateTabRequested;
+    private Consumer<String> onCustomerRedirectRequested;
 
     // State
     private Order currentOrder;
@@ -97,6 +98,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
     private JLabel lblCustomerInfo;
     private JButton btnApplyCustomer;
     private JButton btnUsePoints;
+    private JButton btnAddCustomerRedirect;
     private JComboBox<String> cbVoucherSelector;
     private List<Voucher> activeVouchers = new ArrayList<>();
     private boolean isUpdatingVoucherCombo = false;
@@ -134,6 +136,10 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
     public void setOnNavigateTabRequested(Consumer<String> onNavigateTabRequested) {
         this.onNavigateTabRequested = onNavigateTabRequested;
+    }
+
+    public void setOnCustomerRedirectRequested(Consumer<String> onCustomerRedirectRequested) {
+        this.onCustomerRedirectRequested = onCustomerRedirectRequested;
     }
 
     private void initUI() {
@@ -593,10 +599,34 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         custRow.add(custBtns, BorderLayout.EAST);
         bottom.add(custRow);
 
+        JPanel custInfoRow = new JPanel(new BorderLayout(6, 0));
+        custInfoRow.setOpaque(false);
+        custInfoRow.setBorder(new EmptyBorder(2, 0, 4, 0));
+
         lblCustomerInfo = new JLabel("Khách vãng lai");
         lblCustomerInfo.setFont(new Font("Segoe UI", Font.ITALIC, 11));
         lblCustomerInfo.setForeground(new Color(100, 116, 139));
-        bottom.add(lblCustomerInfo);
+
+        btnAddCustomerRedirect = new JButton("+ Thêm thông tin khách");
+        btnAddCustomerRedirect.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnAddCustomerRedirect.setBackground(new Color(16, 185, 129));
+        btnAddCustomerRedirect.setForeground(Color.WHITE);
+        btnAddCustomerRedirect.setFocusPainted(false);
+        btnAddCustomerRedirect.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnAddCustomerRedirect.setToolTipText("Chuyển sang tab Khách hàng để thêm mới hồ sơ với SĐT này");
+        btnAddCustomerRedirect.setVisible(false);
+        btnAddCustomerRedirect.addActionListener(e -> {
+            String phone = txtCustomerPhone.getText().trim();
+            if (onCustomerRedirectRequested != null) {
+                onCustomerRedirectRequested.accept(phone);
+            } else if (onNavigateTabRequested != null) {
+                onNavigateTabRequested.accept("Khách hàng");
+            }
+        });
+
+        custInfoRow.add(lblCustomerInfo, BorderLayout.CENTER);
+        custInfoRow.add(btnAddCustomerRedirect, BorderLayout.EAST);
+        bottom.add(custInfoRow);
 
         // 2. Voucher row (Kết hợp cả Box chọn mã ưu đãi có sẵn & Nhập mã tay)
         JPanel voucherContainer = new JPanel(new BorderLayout(0, 4));
@@ -814,9 +844,14 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
 
         if (table.getStatus() == TableStatus.OCCUPIED) {
             currentOrder = orderDAO.findOpenByTable(table.getId());
+            if (currentOrder == null) {
+                try {
+                    currentOrder = tableController.openTable(table.getId(), currentUser);
+                } catch (Exception ignored) {}
+            }
         } else if (table.getStatus() == TableStatus.RESERVED) {
             int opt = JOptionPane.showConfirmDialog(this,
-                "Bàn '" + table.getName() + "' hiện đang có lịch ĐẶT TRƯỚC.\nBạn có muốn mở bàn để nhận khách vào ngồi ngay không?",
+                "Bàn '" + table.getName() + "' hiện đang có lịch ĐẶT TRƯỚC.\nBạn có muốn mở bàn để nhận khách vào ngồi và gọi món ngay không?",
                 "Bàn đã đặt trước", JOptionPane.YES_NO_OPTION);
             if (opt == JOptionPane.YES_OPTION) {
                 try {
@@ -915,6 +950,14 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             if (currentOrderType == OrderType.DINE_IN) {
                 DiningTable t = selectedTable != null ? selectedTable : (DiningTable) cbDiningTable.getSelectedItem();
                 if (t != null) {
+                    if (t.getStatus() == TableStatus.RESERVED) {
+                        int opt = JOptionPane.showConfirmDialog(this,
+                            "Bàn '" + t.getName() + "' là bàn ĐẶT TRƯỚC.\nBạn có muốn nhận khách vào bàn để gọi món này không?",
+                            "Xác nhận nhận khách đặt bàn", JOptionPane.YES_NO_OPTION);
+                        if (opt != JOptionPane.YES_OPTION) {
+                            return;
+                        }
+                    }
                     try {
                         currentOrder = tableController.openTable(t.getId(), currentUser);
                         t.setStatus(TableStatus.OCCUPIED);
@@ -932,6 +975,7 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
                 currentOrder = orderController.createOrder(null, currentUser, curShift, OrderType.TAKEAWAY, currentCustomer, "", "", "", note != null ? note : "");
             }
             updateInvoiceHeader();
+            updateTableActionButtonText(selectedTable);
         }
 
         if (currentOrder == null) {
@@ -1092,7 +1136,11 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             lblOrderInfo.setText("Đơn #" + currentOrder.getId() + " • " + loc + " • " + typeStr);
         } else {
             if (currentOrderType == OrderType.DINE_IN && selectedTable != null) {
-                lblOrderInfo.setText(selectedTable.getName() + " • Trống (Chọn món để bắt đầu)");
+                if (selectedTable.getStatus() == TableStatus.RESERVED) {
+                    lblOrderInfo.setText(selectedTable.getName() + " • Đã đặt trước (Bấm 'Nhận bàn đặt' hoặc chọn món)");
+                } else {
+                    lblOrderInfo.setText(selectedTable.getName() + " • Trống (Chọn món để bắt đầu)");
+                }
             } else if (currentOrderType == OrderType.TAKEAWAY) {
                 lblOrderInfo.setText("Đơn Mang về (Chọn món để bắt đầu)");
             } else {
@@ -1116,11 +1164,15 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
         if (btnCancelVoucher != null) btnCancelVoucher.setVisible(false);
         lblCustomerInfo.setText("Khách vãng lai");
         btnUsePoints.setEnabled(false);
+        if (btnAddCustomerRedirect != null) btnAddCustomerRedirect.setVisible(false);
     }
 
-    private void lookupCustomer() {
+    public void lookupCustomer() {
         String phone = txtCustomerPhone.getText().trim();
-        if (phone.isEmpty()) return;
+        if (phone.isEmpty()) {
+            if (btnAddCustomerRedirect != null) btnAddCustomerRedirect.setVisible(false);
+            return;
+        }
         new SwingWorker<Customer, Void>() {
             @Override protected Customer doInBackground() { return customerController.findByPhone(phone); }
             @Override protected void done() {
@@ -1131,14 +1183,18 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
                                 + currentCustomer.getMembershipTier().getDisplayName() + ") • "
                                 + currentCustomer.getLoyaltyPoints() + " điểm</html>");
                         btnUsePoints.setEnabled(currentCustomer.getLoyaltyPoints() > 0);
+                        if (btnAddCustomerRedirect != null) btnAddCustomerRedirect.setVisible(false);
                         if (currentOrder != null) {
                             currentOrder.setCustomerId(currentCustomer.getId());
                         }
                     } else {
-                        lblCustomerInfo.setText("Chưa tìm thấy khách (SĐT mới)");
+                        lblCustomerInfo.setText("<html><font color='#dc2626'>Khách mới (chưa có trong hệ thống)</font></html>");
                         btnUsePoints.setEnabled(false);
+                        if (btnAddCustomerRedirect != null) btnAddCustomerRedirect.setVisible(true);
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                    if (btnAddCustomerRedirect != null) btnAddCustomerRedirect.setVisible(false);
+                }
             }
         }.execute();
     }
@@ -1342,22 +1398,26 @@ public class POSPanel extends JPanel implements OrderObserver, StockObserver {
             return; // Chặn thanh toán hoàn toàn!
         }
 
-        // 2. Kiểm tra xem bếp đã hoàn thành tất cả các món chưa
+        // 2. Kiểm tra xem bếp đã hoàn thành tất cả các món chưa -> BẮT BUỘC BẾP PHẢI BÁO NẤU XONG
+        int notDoneCount = 0;
         try (java.sql.Connection conn = com.pos.utils.DatabaseConnection.getInstance().getConnection();
              java.sql.PreparedStatement ps = conn.prepareStatement(
                 "SELECT COUNT(*) FROM order_details WHERE order_id = ? AND sent_to_kitchen = 1 AND status NOT IN ('DONE', 'REJECTED')")) {
             ps.setInt(1, currentOrder.getId());
             try (java.sql.ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    int pendingCount = rs.getInt(1);
-                    int confirm = JOptionPane.showConfirmDialog(this,
-                        "Còn " + pendingCount + " món chưa được bếp báo hoàn thành!\n" +
-                        "Bạn có chắc muốn thanh toán ngay không?",
-                        "Cảnh báo - Bếp chưa xong", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                    if (confirm != JOptionPane.YES_OPTION) return;
-                }
+                if (rs.next()) notDoneCount = rs.getInt(1);
             }
         } catch (Exception ignored) {}
+
+        if (notDoneCount > 0) {
+            JOptionPane.showMessageDialog(this,
+                "KHÔNG THỂ THANH TOÁN!\n" +
+                "Đơn hàng đang có " + notDoneCount + " món chưa được Bếp báo 'Đã xong'!\n\n" +
+                "Quy trình nhà hàng bắt buộc Bếp phải hoàn tất chế biến tất cả các món trước khi thanh toán.\n" +
+                "Vui lòng đợi Bếp hoàn tất hoặc kiểm tra lại tiến độ chế biến.",
+                "Bếp chưa nấu xong - Chặn thanh toán", JOptionPane.WARNING_MESSAGE);
+            return; // Chặn thanh toán hoàn toàn!
+        }
 
         String payType = ((String) cbPayment.getSelectedItem()).startsWith("CASH") ? "CASH" : "TRANSFER";
 

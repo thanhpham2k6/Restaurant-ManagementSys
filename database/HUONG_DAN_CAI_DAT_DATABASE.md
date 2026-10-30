@@ -7,13 +7,15 @@
 
 ## 1. THÔNG TIN CẤU HÌNH MẶC ĐỊNH
 
-Tệp cấu hình kết nối của phần mềm nằm tại: `src/main/resources/database.properties`
+Tệp cấu hình kết nối của phần mềm nằm tại: `db.properties` (thư mục gốc dự án) hoặc `src/main/resources/db.properties`:
 ```properties
-db.url=jdbc:sqlserver://localhost:1433;databaseName=RestaurantManagementSys;encrypt=false;trustServerCertificate=true
+db.host=localhost
+db.port=1433
+db.name=RestaurantManagementSys
 db.user=sa
 db.password=12345
 ```
-*(Nếu máy mới dùng cổng hoặc tài khoản khác, bạn chỉ cần sửa trong tệp trên).*
+*(Cả 2 file tự động chạy `setup_db.bat` và `restore_db.bat` đều đã được tích hợp cơ chế tự động dò tìm Instance như `localhost` hay `localhost\SQLEXPRESS` và tự đồng bộ vào tệp `db.properties`).*
 
 ---
 
